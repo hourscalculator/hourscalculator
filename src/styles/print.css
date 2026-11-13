@@ -1,0 +1,56 @@
+@media print {
+  @page {
+    margin: 15mm;
+  }
+  body {
+    background: white;
+    color: black;
+    font-size: 10pt;
+  }
+  .site-header,
+  main,
+  footer {
+    display: none !important;
+  }
+  #print-report {
+    display: block;
+  }
+  #print-report h1 {
+    font-size: 20pt;
+  }
+  #print-report table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 9pt;
+  }
+  #print-report td,
+  #print-report th {
+    text-align: left;
+    border-bottom: 1px solid #ccc;
+    padding: 5pt;
+  }
+  #print-report tr {
+    break-inside: avoid;
+  }
+  #print-report thead {
+    display: table-header-group;
+  }
+  #print-report p {
+    overflow-wrap: anywhere;
+  }
+  #print-report {
+    height: auto;
+    overflow: visible;
+  }
+}
+@media print { .employee-report + .employee-report { break-before: page; } #print-report th, #print-report td { overflow-wrap: anywhere; } }
+@media print {
+  .summary-table { background: white; color: black; table-layout: fixed; }
+  .summary-table caption { text-align: left; font-weight: bold; font-size: 16pt; padding: 8pt 0; }
+  .summary-table .report-total { font-weight: bold; }
+  .summary-table tbody { break-inside: auto; }
+  .summary-table .pay-summary { break-inside: avoid; }
+}
+@media print {
+  .pay-summary { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

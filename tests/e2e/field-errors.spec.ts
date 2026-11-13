@@ -1,0 +1,43 @@
+import { test, expect } from '@playwright/test';
+test('custom weeks clip dates and errors point to fields', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  await page.locator('#choose-dates').click();
+  await page.locator('#range-start').fill('2026-11-01');
+  await page.locator('#range-end').fill('2026-11-15');
+  await page.locator('#apply-dates').click();
+  await expect(page.locator('.week-block').first().locator('.day')).toHaveCount(1);
+  await expect(page.locator('.day')).toHaveCount(15);
+  await page.locator('.week-block').first().screenshot({path:'test-results/custom-first-week.png'});
+  await expect(page.locator('.day').first()).toHaveAttribute('data-date','2026-11-01');
+  const rate = page.locator('[data-setting="rate"]');
+  await rate.fill('-1');
+  await rate.blur();
+  await page.locator('#csv').click();
+  await expect(rate).toHaveAttribute('aria-invalid','true');
+  await expect(rate.locator('xpath=ancestor::label').locator('.field-message')).toBeVisible();
+  await page.locator('.rate-settings').screenshot({path:'test-results/rate-errors.png'});
+  await rate.fill('20');
+  await rate.blur();
+  const download = page.waitForEvent('download');
+  await page.locator('#csv').click();
+  await download;
+  await expect(rate).not.toHaveAttribute('aria-invalid','true');
+  const out = page.locator('.day').last().locator('[data-field="end"]');
+  await out.fill('999');
+  await out.blur();
+  await expect(out).toHaveAttribute('aria-invalid','true');
+  await expect(out.locator('xpath=ancestor::label').locator('.field-message')).toContainText('Out');
+  await page.locator('.day').last().screenshot({path:'test-results/input-errors.png'});
+});
+
+test('hidden custom end date does not block weekly export', async ({page}) => {
+  await page.goto('/');
+  await page.locator('[data-card="anchor"]').fill('2027-01-11');
+  await page.locator('[data-card="anchor"]').blur();
+  await expect(page.locator('[data-card="endDate"]')).toBeDisabled();
+  const download = page.waitForEvent('download');
+  await page.locator('#csv').click();
+  await download;
+  await expect(page.locator('#save-status')).toBeHidden();
+});

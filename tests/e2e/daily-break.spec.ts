@@ -1,0 +1,23 @@
+import { test, expect } from '@playwright/test';
+test('daily break controls, local errors and formula report', async ({ page }) => {
+  await page.goto('/');
+  const day = page.locator('.day').last();
+  await day.locator('[data-field="start"]').fill('9');
+  await day.locator('[data-field="start"]').blur();
+  await expect(day.locator('.field-message').first()).toContainText('Out');
+  await day.locator('[data-field="end"]').fill('5p');
+  await day.locator('[data-field="end"]').blur();
+  await page.locator('[data-setting="auto"]').check();
+  await expect(page.locator('.break-fields')).toHaveCount(7);
+  await expect(page.locator('#total')).toHaveText('7:30');
+  await day.locator('[data-field="b0-end"]').fill('1245p');
+  await day.locator('[data-field="b0-end"]').blur();
+  await expect(page.locator('[data-setting="auto"]')).not.toBeChecked();
+  await expect(page.locator('#total')).toHaveText('7:15');
+  await day.locator('[data-add]').click();
+  await expect(day.locator('[data-add-break]')).toHaveCount(1);
+  await expect(page.locator('#daily-report .pay-summary')).toContainText('REG+');
+  await page.reload();
+  await expect(page.locator('.day').last().locator('[data-field="b0-end"]')).toHaveValue('12:45');
+  await page.screenshot({path:'test-results/daily-break-mobile.png',fullPage:true});
+});

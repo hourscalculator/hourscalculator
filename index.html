@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Time Card Calculator – Free Hours &amp; Pay Calculator</title>
+    <meta
+      name="description"
+      content="Calculate work hours, breaks, overtime, decimal hours and estimated gross pay. Save locally, print your time card, export CSV or share a snapshot."
+    />
+    <link rel="canonical" href="%SITE_URL%/" />
+    <meta name="theme-color" content="#f5f5f0" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="#calculator" class="brand">hours<span>calculator</span></a
+      ><a href="#how-to-use">Help</a>
+    </header>
+    <main>
+      <div class="heading">
+        <h1>Time Card Calculator</h1>
+      </div>
+      <section id="calculator" aria-label="Time card calculator">
+        <div id="editor">
+<section class="worker-card" aria-label="Employee time card">
+          <div class="card-heading">
+            <label
+              ><span class="field-label"
+                >Name <span class="optional">optional</span></span
+              ><input
+                data-card="name"
+                placeholder="Your name"
+                maxlength="200" /></label
+            ><label><span id="anchor-label">Date</span><input type="date" data-card="anchor" /></label>
+          <div id="custom-dates" hidden>
+            <label
+              >End date<input data-card="endDate" type="date"
+            /></label>
+          </div>
+          </div>
+          <div class="settings-grid quick-settings"><div class="quick-group"><label id="biweekly"
+              >Report period<select data-card="length">
+                <option value="1">1 week</option>
+                <option value="2">2 weeks</option>
+                <option value="3">3 weeks</option>
+                <option value="4">4 weeks</option>
+                <option value="month">Whole month</option>
+                <option value="custom">Custom dates</option>
+              </select></label
+            ></div><div class="quick-group"><label class="check" id="lunch"
+              ><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label
+            ><label
+              ><span class="minutes-control"><input aria-label="Daily break minutes"
+                data-setting="deduction"
+                type="number"
+                min="0"
+                max="1439"
+                value="30" /> minutes</span></label
+            ></div></div>
+          <div id="share-preview" hidden>
+            <p id="preview-description"></p>
+            <button id="adopt">Adopt this time card</button
+            ><button id="dismiss">Keep local draft</button>
+          </div>
+          <dialog id="date-range-dialog" aria-labelledby="date-range-title">
+            <div class="date-range-heading"><h2 id="date-range-title" tabindex="-1" autofocus>Choose dates</h2><button id="close-date-range" type="button" aria-label="Close date picker">×</button></div>
+            <div class="range-inputs"><label>Start date<input id="range-start" type="date" required disabled></label><label>End date<input id="range-end" type="date" required disabled></label></div>
+            <div class="calendar-nav"><button id="previous-month" type="button" aria-label="Previous month">‹</button><strong id="calendar-month" aria-live="polite"></strong><button id="next-month" type="button" aria-label="Next month">›</button></div>
+            <p id="range-instruction">Select a start date, then an end date.</p>
+            <div id="calendar-weekdays" class="calendar-grid" aria-hidden="true"></div>
+            <div id="calendar-days" class="calendar-grid" role="group" aria-label="Calendar dates"></div>
+            <button id="apply-dates" class="primary" type="button">Apply dates</button>
+          </dialog>
+          <div class="time-card-title"><strong>Time Card</strong><button id="choose-dates" type="button" aria-label="Choose report start and end dates"></button></div>
+          <div id="days"></div>
+<div class="rate-settings"><div class="quick-group"><label
+              ><span class="field-label">Hourly rate <span class="optional">optional</span></span><span class="rate-input"><span id="rate-currency" aria-hidden="true">$</span><input
+                data-setting="rate"
+                type="number"
+                min="0"
+                max="1000000"
+                step="0.01"
+                placeholder="" /></span></label
+            ><label><span class="overtime-label">Overtime <button type="button" id="overtime-help" aria-label="Explain overtime" aria-haspopup="dialog">?</button></span><select id="overtime-rule"><option value="none">No overtime</option><option value="weekly" selected>Over 40 hours a week</option><option value="daily">Over 8 hours a day</option><option value="ca">California rules</option></select></label
+            ></div></div>
+          <dialog id="overtime-dialog" aria-labelledby="overtime-help-title">
+            <h2 id="overtime-help-title">Overtime explained</h2>
+            <dl>
+              <dt>Over 40 hours a week (default)</dt><dd>Hours above 40 in a workweek are paid at 1.5×. Federal standard, used in most states.</dd>
+              <dt>Over 8 hours a day</dt><dd>Hours above 8 in a workday are paid at 1.5×. Used for daily overtime, including in states such as California.</dd>
+              <dt>California rules</dt><dd>Hours above 8 through 12 in a workday are paid at 1.5×. Hours above 12 are paid at 2×. On the seventh consecutive workday, the first 8 hours are paid at 1.5× and additional hours at 2×. Weekly overtime is included without counting premiums twice.</dd>
+            </dl>
+            <button type="button" id="close-overtime-help" aria-label="Close overtime help">×</button>
+          </dialog>
+          <div class="report">
+            <div id="daily-report"></div><div class="report-heading">
+              <h2>Your time card</h2>
+              <span id="report-status" role="status">Estimate ready</span>
+            </div>
+            <div class="results">
+              <div>
+                <span>Total hours (hh:mm)</span><strong id="total">0:00</strong>
+              </div>
+              <div>
+                <span>Decimal hours</span><strong id="decimal">0.00</strong>
+              </div>
+              <div>
+                <span>Regular / Overtime / Double time</span
+                ><strong id="regular">0:00 / 0:00 / 0:00</strong>
+              </div>
+              <div>
+                <span>Estimated gross pay</span
+                ><strong id="pay">Enter hourly rate</strong>
+              </div>
+            </div>
+
+            <ul id="errors" role="alert"></ul>
+          </div>
+</section>
+          <div class="actions">
+            <button class="primary" id="print">Print / PDF</button
+            ><button id="csv">Export CSV</button
+            ><button id="share">Copy share link</button
+            ><button class="clear" id="clear">Clear</button>
+          </div>
+          <p id="save-status" role="status"></p>
+          <details id="settings">
+            <summary>
+              <strong class="settings-title"
+                ><span class="settings-arrow" aria-hidden="true">▶</span>
+                Advanced settings</strong
+              >
+              <span>Period, display, breaks &amp; overtime</span>
+            </summary>
+            <div class="settings-grid">
+              <label
+                >Week starts<select data-setting="weekStart">
+                  <option value="1">Monday</option>
+                  <option value="0">Sunday</option>
+                  <option value="2">Tuesday</option>
+                  <option value="3">Wednesday</option>
+                  <option value="4">Thursday</option>
+                  <option value="5">Friday</option>
+                  <option value="6">Saturday</option>
+                </select></label
+              >
+              <label
+                >Currency<select data-card="currency">
+                  <option>USD</option>
+                  <option>EUR</option>
+                  <option>GBP</option>
+                  <option>CAD</option>
+                  <option>AUD</option>
+                </select></label
+              ><label class="check"
+                ><input type="checkbox" data-card="decimalFirst" />Decimal
+                result first</label
+              ><label
+                >Preset<select id="preset">
+                  <option value="hourly">Hourly worker</option>
+                  <option value="lunch">With lunch</option>
+                  <option value="biweekly">Biweekly</option>
+                  <option value="decimal">Decimal hours</option>
+                  <option value="freelancer">Freelancer</option>
+                </select></label
+              ><button id="apply-preset">Apply preset</button>
+              <label
+                >Time format<select data-card="format">
+                  <option value="12">12 hour</option>
+                  <option value="24">24 hour</option>
+                </select></label
+              ><label class="check"
+                ><input type="checkbox" data-card="showAmPm" checked /> Show AM
+                / PM</label
+              ><label
+                >Default work periods<input
+                  data-card="defaultSegments"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value="1" /></label
+              ><label
+                >Default breaks<input
+                  data-card="defaultBreaks"
+                  type="number"
+                  min="0"
+                  max="10"
+                  value="0" /></label
+              ><label id="decimal-settings"
+                >Decimal display<select data-setting="round">
+                  <option value="two">Two decimal places</option>
+                  <option value="none">No rounding (up to 6 digits)</option>
+                  <option value="quarter">Nearest quarter hour</option>
+                </select></label
+              ><label
+                >Workday starts<input
+                  data-setting="dayStart"
+                  type="time"
+                  value="00:00" /></label
+              ><label
+                >Auto break threshold (minutes)<input
+                  data-setting="threshold"
+                  type="number"
+                  min="0"
+                  max="1439"
+                  value="360"
+              /></label>
+            </div>
+            <p class="setting-note">
+              Automatic daily breaks start at noon and use the selected minutes.
+              Edit a break in its time fields or use the endpoint arrow keys.
+            </p>
+          </details>
+          <input
+            id="share-url"
+            aria-label="Share snapshot URL"
+            readonly
+            hidden
+          />
+          <p id="share-note"></p>
+          <details>
+            <summary>Templates and approval receipts</summary>
+            <button id="readonly-share">Create read-only approval snapshot</button
+          >
+            <div class="settings-grid">
+              <label
+                >Template name<input
+                  id="template-name"
+                  maxlength="100" /></label
+              ><button id="save-template">Save rules template</button
+              ><label>Saved templates<select id="templates"></select></label
+              ><button id="apply-template">Preview and apply template</button
+              ><button id="delete-template">Delete template</button>
+            </div>
+            <label>Receipt link or JSON<input id="receipt-input" /></label
+            ><button id="import-receipt">Import receipt</button>
+            <div id="receipts"></div>
+            <p>
+              Receipts are filled in by link holders and stored locally. No
+              identity authentication is provided. Send snapshot and receipt
+              links by copying them into your email.
+            </p>
+          </details>
+        </div>
+        <section id="readonly-view" hidden>
+          <h2>Read-only snapshot</h2>
+          <p id="readonly-status" role="status"></p>
+          <div id="readonly-report"></div>
+          <button id="readonly-print">Print / PDF</button
+          ><button id="readonly-csv">Export CSV</button>
+          <div id="approval-receipt"><h3>Approval receipt</h3>
+          <p>
+            Filled in by the link holder. No identity authentication. Copy the
+            generated receipt link back to the sender.
+          </p>
+          <label>Reviewer name<input id="reviewer" maxlength="200" /></label
+          ><label
+            >Decision<select id="decision">
+              <option>Approved</option>
+              <option>Changes requested</option>
+            </select></label
+          ><label>Note<input id="review-note" maxlength="2000" /></label
+          ><button id="make-receipt">Generate receipt link</button
+          ><input
+            id="receipt-output"
+            aria-label="Receipt link"
+            readonly
+            hidden
+          /></div>
+        </section>
+      </section>
+      <details class="help-section" id="help-details"><summary>Help &amp; calculation details</summary>
+      <article id="help">
+        <section id="about">
+          <h2>About</h2>
+          <p id="about-copy">
+            Time Card Calculator helps you turn everyday clock entries into a
+            clear record of hours and estimated earnings. Start with your first
+            arrival and departure, then add any additional work periods or
+            breaks. Your weekly totals update as you enter times, with separate
+            figures for regular hours, overtime, and double time when
+            applicable. Choose a single week, several weeks, or a calendar month
+            to match your reporting routine. You can adjust the workweek
+            boundary, review overnight shifts, and compare decimal hours with
+            familiar hours and minutes. Keep a draft in your browser, download a
+            detailed CSV, or print a readable copy. Share a snapshot when
+            someone else needs to review the same entries before you submit your
+            final time card.
+          </p>
+        </section>
+        <section id="how-to-use">
+          <h2>How to use</h2>
+          <ol>
+            <li>Choose a date and the first day of your workweek.</li>
+            <li>
+              Enter In and Out times. Try 855 for 8:55, 9 for 9:00, or 930p for
+              9:30 PM. An explicit a/p suffix takes priority. Otherwise the
+              visible AM/PM selection applies. With AM/PM hidden, use 24 hour
+              times.
+            </li>
+            <li>
+              Add work periods and actual break start and end times. Mark paid
+              breaks when appropriate.
+            </li>
+            <li>
+              Use Settings to choose the reporting period, hourly rate and
+              overtime rule. Review context days around month boundaries.
+            </li>
+            <li>
+              Review the automatically saved results, then print, export CSV,
+              or copy a report link.
+            </li>
+          </ol>
+          <p>
+            The timeline is an additional editor. Focus a marked endpoint and
+            use its arrow keys to adjust it in five minute steps, or enter
+            exact times in the always visible fields. Out times earlier than In
+            continue into the next day.
+          </p>
+        </section>
+        <section id="calculation">
+          <h2>How we calculate</h2>
+          <p>
+            Worked minutes = work period minutes − unpaid break minutes. Paid
+            breaks remain within worked time. Gaps between separate work periods
+            are already excluded. Automatic daily unpaid break adds an editable break starting at noon
+            to each day. Editing a break turns off the automatic option.
+          </p>
+          <p>
+            Weekly overtime uses hours above 40 in each separate workweek. Daily
+            mode uses hours above 8 per workday. California standard mode uses
+            1.5× after 8 through 12 hours, 2× after 12, and seventh consecutive
+            workday rules, with weekly overtime added without duplicating daily
+            premiums. Estimated gross pay uses actual minutes and the selected
+            hourly rate, rounded once to cents for the report.
+          </p>
+          <p>
+            Civil dates and clock minutes are used without device timezone
+            conversion. Daylight saving transitions are not automatically
+            adjusted. Special industry rules, alternative workweeks, bonuses,
+            multiple rates, taxes and meal penalties require separate handling.
+            Missing adjacent workday information is marked as an incomplete
+            estimate.
+          </p>
+          <ol class="footnotes">
+            <li>
+              Decimal hours are converted from each actual hh:mm total, rather
+              than summed from rounded daily decimal figures.
+            </li>
+            <li>
+              The minutes after the colon in hh:mm are base 60. For example,
+              7:30 means seven and one half hours.
+            </li>
+            <li>
+              Decimal hours and report display rounding preserve actual minutes
+              and estimated pay. Three days of 8:01 total 24:03, displayed as
+              24.05 decimal hours.
+            </li>
+          </ol>
+          <p>
+            Rule references
+            <a
+              href="https://www.dol.gov/agencies/whd/fact-sheets/23-flsa-overtime-pay"
+              >U.S. Department of Labor</a
+            >
+            and
+            <a href="https://www.dir.ca.gov/dlse/faq_overtime.htm"
+              >California Labor Commissioner</a
+            >.
+          </p>
+        </section>
+        <section id="faq">
+          <h2>Frequently asked questions</h2>
+          <details>
+            <summary>How do I subtract a lunch break?</summary>
+            <p>
+              Add its actual start and end times as an unpaid break within the
+              work period. Alternatively enable the editable automatic break
+              setting. Automatic daily breaks start at noon. Adjust their input fields or use the arrow keys on their green timeline endpoints.
+            </p>
+          </details>
+          <details>
+            <summary>Can I enter a shift that crosses midnight?</summary>
+            <p>
+              Yes. An Out time earlier than In continues into the next day. Work
+              and breaks are split at your chosen workday boundary. Equal times
+              mean zero duration.
+            </p>
+          </details>
+          <details>
+            <summary>Can I calculate a biweekly time card?</summary>
+            <p>
+              Choose 2 weeks in Settings. Each workweek keeps its own 40 hour
+              overtime threshold, so two week totals are never averaged.
+            </p>
+          </details>
+          <details>
+            <summary>What does California mode include?</summary>
+            <p>
+              It includes standard daily, weekly, double time and seventh
+              consecutive workday premiums. Special exemptions, alternative
+              workweeks and meal penalties are outside this calculator.
+            </p>
+          </details>
+          <details>
+            <summary>Why might decimal hours differ from payroll?</summary>
+            <p>
+              Your payroll system may apply different rounding or compensation
+              policies. Decimal display rounding here does not change actual
+              minutes or estimated gross pay.
+            </p>
+          </details>
+          <details>
+            <summary>Will my time card be saved?</summary>
+            <p>
+              The calculator saves drafts in this browser's local storage when
+              available. Check the save status. Browser cleanup or private
+              browsing can remove a draft.
+            </p>
+          </details>
+          <details>
+            <summary>How can I print or save a PDF?</summary>
+            <p>
+              Choose Print / PDF after correcting input errors, then use your
+              browser's print dialog to select a printer or Save as PDF.
+            </p>
+          </details>
+          <details>
+            <summary>
+              Where is my data stored and who can read a shared link?
+            </summary>
+            <p>
+              Drafts stay in browser storage. Sharing deliberately places a
+              compressed snapshot in the link fragment. Anyone holding that link
+              can read it. Snapshots do not sync and cannot be revoked.
+            </p>
+          </details>
+        </section>
+        <section id="shortcuts">
+          <h2>Calculator shortcuts</h2>
+          <p>
+            On this page <a href="#lunch">Lunch break settings</a> ·
+            <a href="#biweekly">Biweekly period</a> ·
+            <a href="#decimal-settings">Decimal display</a>
+          </p>
+        </section>
+      </article></details>
+    </main>
+    <section id="print-report"></section>
+    <footer>Time Card Calculator · Hours &amp; estimated gross pay</footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
