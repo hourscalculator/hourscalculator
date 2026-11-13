@@ -22,45 +22,56 @@
       </div>
       <section id="calculator" aria-label="Time card calculator">
         <div id="editor">
-<section class="worker-card" aria-label="Employee time card">
-          <div class="card-heading">
-            <label
-              ><span class="field-label"
-                >Name <span class="optional">optional</span></span
-              ><input
-                data-card="name"
-                placeholder="Your name"
-                maxlength="200" /></label
-            ><label><span id="anchor-label">Date</span><input type="date" data-card="anchor" /></label>
-          <div id="custom-dates" hidden>
-            <label
-              >End date<input data-card="endDate" type="date"
-            /></label>
-          </div>
-          </div>
-          <div class="settings-grid quick-settings"><div class="quick-group"><label id="biweekly"
-              >Report period<select data-card="length">
-                <option value="1">1 week</option>
-                <option value="2">2 weeks</option>
-                <option value="3">3 weeks</option>
-                <option value="4">4 weeks</option>
-                <option value="month">Whole month</option>
-                <option value="custom">Custom dates</option>
-              </select></label
-            ></div><div class="quick-group"><label class="check" id="lunch"
-              ><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label
-            ><label
-              ><span class="minutes-control"><input aria-label="Daily break minutes"
-                data-setting="deduction"
-                type="number"
-                min="0"
-                max="1439"
-                value="30" /> minutes</span></label
-            ></div></div>
           <div id="share-preview" hidden>
             <p id="preview-description"></p>
             <button id="adopt">Adopt this time card</button
             ><button id="dismiss">Keep local draft</button>
+          </div>
+          <div id="worker-cards"></div>
+          <template id="worker-card-template">
+            <section class="worker-card" aria-label="Employee time card">
+              <div class="worker-card-heading">
+                <div class="card-heading">
+                  <label
+                    ><span class="field-label"
+                      >Name <span class="optional">optional</span></span
+                    ><input
+                      data-card="name"
+                      placeholder="Your name"
+                      maxlength="200" /></label
+                  ><label><span>Date</span><button type="button" class="date-range-control" data-choose-dates aria-label="Choose report date range"></button></label>
+                </div>
+                <button class="remove-worker" type="button" data-remove-worker hidden aria-label="Remove time card">×</button>
+              </div>
+              <div class="settings-grid quick-settings">
+                <div class="quick-group">
+                  <label class="biweekly">Report period<select data-card="length">
+                    <option value="1">1 week</option>
+                    <option value="2">2 weeks</option>
+                    <option value="3">3 weeks</option>
+                    <option value="4">4 weeks</option>
+                    <option value="custom">Custom dates</option>
+                  </select></label>
+                </div>
+                <div class="quick-group">
+                  <label class="check"><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label>
+                  <label><span class="minutes-control"><input aria-label="Daily break minutes" data-setting="deduction" type="number" min="0" max="1439" value="30" /> minutes</span></label>
+                </div>
+              </div>
+              <div class="time-card-title"><strong>Time Card</strong></div>
+              <div data-days></div>
+            </section>
+          </template>
+          <div class="add-time-card-row"><button id="add-time-card" type="button">+ Add time card</button></div>
+              <div class="rate-settings">
+                <div class="quick-group">
+                  <label><span class="field-label">Hourly rate <span class="optional">optional</span></span><span class="rate-input"><span class="rate-currency" aria-hidden="true">$</span><input data-setting="rate" type="number" min="0" max="1000000" step="0.01" placeholder="" /></span></label>
+                  <label><span class="overtime-label">Overtime <button type="button" class="overtime-help" aria-label="Explain overtime" aria-haspopup="dialog">?</button></span><select class="overtime-rule"><option value="none">No overtime</option><option value="weekly" selected>Over 40 hours a week</option><option value="daily">Over 8 hours a day</option><option value="ca">California rules</option></select></label>
+                </div>
+              </div>
+          <div class="report">
+            <div id="daily-report"></div>
+            <ul id="errors" role="alert"></ul>
           </div>
           <dialog id="date-range-dialog" aria-labelledby="date-range-title">
             <div class="date-range-heading"><h2 id="date-range-title" tabindex="-1" autofocus>Choose dates</h2><button id="close-date-range" type="button" aria-label="Close date picker">×</button></div>
@@ -71,18 +82,6 @@
             <div id="calendar-days" class="calendar-grid" role="group" aria-label="Calendar dates"></div>
             <button id="apply-dates" class="primary" type="button">Apply dates</button>
           </dialog>
-          <div class="time-card-title"><strong>Time Card</strong><button id="choose-dates" type="button" aria-label="Choose report start and end dates"></button></div>
-          <div id="days"></div>
-<div class="rate-settings"><div class="quick-group"><label
-              ><span class="field-label">Hourly rate <span class="optional">optional</span></span><span class="rate-input"><span id="rate-currency" aria-hidden="true">$</span><input
-                data-setting="rate"
-                type="number"
-                min="0"
-                max="1000000"
-                step="0.01"
-                placeholder="" /></span></label
-            ><label><span class="overtime-label">Overtime <button type="button" id="overtime-help" aria-label="Explain overtime" aria-haspopup="dialog">?</button></span><select id="overtime-rule"><option value="none">No overtime</option><option value="weekly" selected>Over 40 hours a week</option><option value="daily">Over 8 hours a day</option><option value="ca">California rules</option></select></label
-            ></div></div>
           <dialog id="overtime-dialog" aria-labelledby="overtime-help-title">
             <h2 id="overtime-help-title">Overtime explained</h2>
             <dl>
@@ -92,31 +91,6 @@
             </dl>
             <button type="button" id="close-overtime-help" aria-label="Close overtime help">×</button>
           </dialog>
-          <div class="report">
-            <div id="daily-report"></div><div class="report-heading">
-              <h2>Your time card</h2>
-              <span id="report-status" role="status">Estimate ready</span>
-            </div>
-            <div class="results">
-              <div>
-                <span>Total hours (hh:mm)</span><strong id="total">0:00</strong>
-              </div>
-              <div>
-                <span>Decimal hours</span><strong id="decimal">0.00</strong>
-              </div>
-              <div>
-                <span>Regular / Overtime / Double time</span
-                ><strong id="regular">0:00 / 0:00 / 0:00</strong>
-              </div>
-              <div>
-                <span>Estimated gross pay</span
-                ><strong id="pay">Enter hourly rate</strong>
-              </div>
-            </div>
-
-            <ul id="errors" role="alert"></ul>
-          </div>
-</section>
           <div class="actions">
             <button class="primary" id="print">Print / PDF</button
             ><button id="csv">Export CSV</button

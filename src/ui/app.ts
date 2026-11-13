@@ -1,8 +1,11 @@
-import { tableReport, summaryReport, money, escape } from "./report";
+import { tableReport, summaryReport, escape } from "./report";
 import {
   cardPeriod,
   getTableReport,
   selectEmployee,
+  addEmployee,
+  employeeCards,
+  removeEmployee,
 } from "../state/card";
 import {
   makeTemplate,
@@ -15,7 +18,7 @@ import {
   type Template,
 } from "../io/workflows";
 import { applyPreset, routePreset, type Preset } from "../state/presets";
-import { hhmm, decimal, dateString } from "../domain/core";
+import { hhmm, dateString } from "../domain/core";
 import { dayNumber } from "../domain/report";
 import {
   type Card,
@@ -65,9 +68,32 @@ export async function start() {
   let message = loaded.error || "",
     sharePreview: Card | null = null;
   const root = document.querySelector<HTMLElement>("#calculator")!;
-  const days = document.querySelector<HTMLElement>("#days")!;
+  const workerCardsRoot = root.querySelector<HTMLElement>("#worker-cards")!;
+  const workerTemplate = root.querySelector<HTMLTemplateElement>("#worker-card-template")!;
+  const workerViews = new Map<string, HTMLElement>();
+  let workerRoot!: HTMLElement;
+  let days!: HTMLElement;
   let readonlyCard: Card | null = null;
   let copiedSnapshot = "";
+  function workerView(employeeId: string) {
+    let view = workerViews.get(employeeId);
+    if (!view) {
+      view = workerTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement;
+      view.dataset.workerId = employeeId;
+      workerViews.set(employeeId, view);
+    }
+    return view;
+  }
+  function activateWorker(employeeId = card.selectedEmployee) {
+    if (card.selectedEmployee !== employeeId) selectEmployee(card, employeeId);
+    workerRoot = workerView(employeeId);
+    days = workerRoot.querySelector<HTMLElement>("[data-days]")!;
+  }
+  function activateWorkerFromTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return;
+    const view = target.closest<HTMLElement>(".worker-card[data-worker-id]");
+    if (view?.dataset.workerId) activateWorker(view.dataset.workerId);
+  }
   function showError(error: unknown) {
     document.querySelector("#save-status")!.textContent = String(error);
     document.querySelector("#readonly-status")!.textContent = String(error);
@@ -199,10 +225,14 @@ export async function start() {
     return copied;
   }
   function input(entry: Entry, f: Field, key: string, label: string) {
-    return `<label class="time-field">${label}<span class="time-control"><input aria-label="${label} ${escape(entry.row)}" data-entry="${entry.id}" data-field="${key}" value="${escape(f.dirty ? f.raw : f.value === null ? f.raw : displayTime(f.value, card))}" inputmode="text" autocomplete="off" placeholder="9:00 or 900" ${f.raw && f.value === null ? 'aria-invalid="true"' : ""}>${card.format === "12" && card.showAmPm ? `<button type="button" class="meridiem ${f.ampm.toLowerCase()}" role="switch" aria-checked="${f.ampm === "PM"}" aria-label="${label} PM" data-toggle-meridiem="${key}" data-entry="${entry.id}"><span>${f.ampm}</span></button>` : ""}</span>${f.value !== null && (!card.showAmPm || card.format === "24") ? `<small>${hhmm(f.value)}</small>` : ""}</label>`;
+    return `<label class="time-field"><span class="time-field-heading"><span>${label}</span></span><span class="time-control"><input aria-label="${label} ${escape(entry.row)}" data-entry="${entry.id}" data-field="${key}" value="${escape(f.dirty ? f.raw : f.value === null ? f.raw : displayTime(f.value, card))}" inputmode="text" autocomplete="off" placeholder="9:00 or 900" ${f.raw && f.value === null ? 'aria-invalid="true"' : ""}>${card.format === "12" && card.showAmPm ? `<button type="button" class="meridiem ${f.ampm.toLowerCase()}" role="switch" aria-checked="${f.ampm === "PM"}" aria-label="${label} PM" data-toggle-meridiem="${key}" data-entry="${entry.id}"><span>${f.ampm}</span></button>` : ""}</span>${f.value !== null && (!card.showAmPm || card.format === "24") ? `<small>${hhmm(f.value)}</small>` : ""}</label>`;
   }
   function timeline(entries: Entry[]) {
-    const content = entries.map((entry) => {
+    const content = entries.map((source) => {
+      const entry = structuredClone(source);
+      for (const field of [entry.start, entry.end, ...entry.breaks.flatMap(rest => [rest.start, rest.end])]) {
+        commitField(card, entry, field);
+      }
       const hasWork = entry.start.value !== null && entry.end.value !== null;
       const start = entry.start.value ?? 0;
       const finish = entry.end.value ?? 0;
@@ -237,8 +267,7 @@ export async function start() {
   function alignAnchor() {
     if (!["month", "custom"].includes(card.length))
       card.anchor = dateString(cardPeriod(card).start);
-    const input = document.querySelector<HTMLInputElement>('[data-card="anchor"]')!;
-    if (input.validity.valid) input.value = card.anchor;
+
   }
   let calendarMonth = "";
   let choosingEnd = false;
@@ -313,7 +342,8 @@ export async function start() {
     }
     const result = getReport(card);
     const multipleWeeks = range.contextEnd - range.contextStart > 7;
-    document.querySelector("#choose-dates")!.textContent = `${dateString(range.start)} – ${dateString(range.end - 1)}`;
+    for (const control of workerRoot.querySelectorAll("[data-choose-dates]"))
+      control.textContent = `${dateString(range.start)} – ${dateString(range.end - 1)}`;
     let html = "";
     for (let week = range.contextStart; week < range.contextEnd; week += 7) {
       html += `<section class="week-block" aria-label="Week ${Math.floor((week - range.contextStart) / 7) + 1}"><table class="entry-table">${multipleWeeks ? `<thead><tr><th colspan="2" class="week-heading"><div><span>Week ${Math.floor((week - range.contextStart) / 7) + 1}</span><span>${dateString(Math.max(week, range.start))} – ${dateString(Math.min(week + 6, range.end - 1))}</span></div></th></tr></thead>` : ""}<tbody class="week" data-week="${dateString(week)}">`;
@@ -362,10 +392,16 @@ export async function start() {
     text.id = errorId;
     text.className = "field-message";
     text.textContent = message;
-    if (!existing) (control.closest("label") ?? control.parentElement)!.append(text);
+    if (!existing) {
+      const timeHeading = control.closest(".time-field")?.querySelector(".time-field-heading");
+      (timeHeading ?? control.closest("label") ?? control.parentElement)!.append(text);
+    }
   }
   function renderValidation(report: ReturnType<typeof getReport>) {
-    const controls = root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-field], [data-setting], [data-card], #overtime-rule");
+    const controls = [
+      ...workerRoot.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-field], [data-setting], [data-card], .overtime-rule"),
+      ...root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("#settings [data-setting], #settings [data-card], .rate-settings [data-setting], .overtime-rule"),
+    ];
     const messages = new Map<HTMLInputElement | HTMLSelectElement, string>();
     for (const control of controls) {
       if (!control.disabled && !control.validity.valid) messages.set(control, control.validationMessage);
@@ -377,7 +413,7 @@ export async function start() {
       const control = days.querySelector<HTMLInputElement>(`[data-entry="${entry.id}"][data-field="${field}"]`);
       if (control) messages.set(control, issue.message);
     }
-    if (report.errors.some((error) => error.includes("automatic break exceeds hours"))) messages.set(root.querySelector<HTMLInputElement>('[data-setting="deduction"]')!, "Daily break is longer than the working time.");
+    if (report.errors.some((error) => error.includes("automatic break exceeds hours"))) messages.set(workerRoot.querySelector<HTMLInputElement>('[data-setting="deduction"]')!, "Daily break is longer than the working time.");
     for (const control of controls) setFieldError(control, messages.get(control) ?? "");
   }
   function updateResults() {
@@ -386,58 +422,45 @@ export async function start() {
       const label = day.querySelector(".day-hours");
       const row = r.rows.find((row) => row.date === day.dataset.date);
       if (label) label.textContent = row ? hhmm(row.minutes) : "—";
+      const track = day.querySelector<HTMLElement>(".timeline");
+      if (track) track.innerHTML = `<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>${timeline(card.entries.filter(entry => entry.row === day.dataset.date)) || '<div class="empty-track">Enter In and Out to show the timeline</div>'}`;
     }
-    document.querySelector<HTMLInputElement>('[data-setting="deduction"]')!.disabled = !card.settings.auto;
-    document.querySelector("#rate-currency")!.textContent = new Intl.NumberFormat("en-US", { style: "currency", currency: card.currency }).formatToParts(0).find((part) => part.type === "currency")!.value;
-    document.querySelector(".worker-card")!.setAttribute("aria-label", card.name ? `${card.name} time card` : "Employee time card");
-    document.querySelector("#daily-report")!.innerHTML = summaryReport(card);
-    document.querySelector("#total")!.textContent = hhmm(r.total);
-    document.querySelector("#decimal")!.textContent = decimal(
-      r.total,
-      card.settings.round,
-    );
-    document.querySelector("#regular")!.textContent =
-      `${hhmm(r.regular)} / ${hhmm(r.overtime)} / ${hhmm(r.double)}`;
-    document.querySelector("#pay")!.textContent = money(r.pay, card.currency);
-    document.querySelector("#report-status")!.textContent = r.status;
+    workerRoot.querySelector<HTMLInputElement>('[data-setting="deduction"]')!.disabled = !card.settings.auto;
+    root.querySelector(".rate-currency")!.textContent = new Intl.NumberFormat("en-US", { style: "currency", currency: card.currency }).formatToParts(0).find((part) => part.type === "currency")!.value;
+    workerRoot.setAttribute("aria-label", card.name ? `${card.name} time card` : "Employee time card");
+    workerRoot.querySelector<HTMLButtonElement>("[data-remove-worker]")?.setAttribute("aria-label", `Remove ${card.name || "time card"}`);
     for (const entryErrors of days.querySelectorAll<HTMLElement>("[data-errors]")) {
       const entries = card.entries.filter((entry) => entry.row === entryErrors.dataset.errors);
       entryErrors.innerHTML = r.errors.filter((error) => (entries.some((entry) => error.startsWith(entry.id + ":")) || error.startsWith(entryErrors.dataset.errors + ":")) && !r.issues.some((issue) => error.startsWith(issue.segmentId + ":")))
         .map((error) => `<li>${escape(error.slice(error.indexOf(":") + 1).trim())}</li>`).join("");
     }
-    document.querySelector("#errors")!.textContent = "";
     renderValidation(r);
-    const print = document.querySelector("#print-report")!;
-    print.innerHTML = tableReport(card, true);
-    document.querySelector<HTMLInputElement>(
-      '#overtime-rule',
-    )!.disabled = card.billing !== "hourly";
-    document.querySelector<HTMLElement>("#custom-dates")!.hidden = card.length !== "custom";
-    document.querySelector("#anchor-label")!.textContent = card.length === "custom" ? "Start date" : "Date";
-    const endDate = document.querySelector<HTMLInputElement>('[data-card="endDate"]')!;
-    endDate.min = card.anchor;
-    endDate.disabled = card.length !== "custom";
-    const decimalResult = document.querySelector("#decimal")!.parentElement!;
-    const total = document.querySelector("#total")!.parentElement!;
-    decimalResult.parentElement!.prepend(
-      card.decimalFirst ? decimalResult : total,
-    );
+    const markup = summaryReport(card, true);
+    root.querySelector("#daily-report")!.innerHTML = markup;
+    document.querySelector("#print-report")!.innerHTML = tableReport(card, true);
+    root.querySelector<HTMLSelectElement>(".overtime-rule")!.disabled = card.billing !== "hourly";
     void renderReceipts();
   }
   function syncControls() {
-    document.querySelector<HTMLSelectElement>("#overtime-rule")!.value = card.settings.overtime === false ? "none" : card.settings.mode;
-    for (const el of root.querySelectorAll<
+    root.querySelector<HTMLSelectElement>(".overtime-rule")!.value = card.settings.overtime === false ? "none" : card.settings.mode;
+    for (const el of [
+      ...workerRoot.querySelectorAll<
       HTMLInputElement | HTMLSelectElement
-    >("[data-card]")) {
+      >( "[data-card]"),
+      ...root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("#settings [data-card]"),
+    ]) {
       const key = el.dataset.card! as keyof Card;
       el.setCustomValidity("");
       if (el instanceof HTMLInputElement && el.type === "checkbox")
         el.checked = Boolean(card[key]);
       else el.value = String(card[key]);
     }
-    for (const el of root.querySelectorAll<
+    for (const el of [
+      ...workerRoot.querySelectorAll<
       HTMLInputElement | HTMLSelectElement
-    >("[data-setting]")) {
+      >( "[data-setting]"),
+      ...root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("#settings [data-setting], .rate-settings [data-setting]"),
+    ]) {
       const key = el.dataset.setting! as keyof Card["settings"];
       el.setCustomValidity("");
       if (el instanceof HTMLInputElement && el.type === "checkbox")
@@ -456,6 +479,45 @@ export async function start() {
               : String(card.settings[key]);
     }
   }
+  function renderWorkerCards() {
+    const employees = employeeCards(card);
+    const ids = employees.map((employee) => employee.selectedEmployee);
+    const selected = card.selectedEmployee;
+    for (const [employeeId, view] of workerViews) {
+      if (ids.includes(employeeId)) continue;
+      view.remove();
+      workerViews.delete(employeeId);
+    }
+    const protectedId = card.employeeOrder?.find((employeeId) => ids.includes(employeeId)) ?? ids[0];
+    for (const employee of employees) {
+      const view = workerView(employee.selectedEmployee);
+      workerCardsRoot.append(view);
+      const remove = view.querySelector<HTMLButtonElement>("[data-remove-worker]")!;
+      remove.hidden = employee.selectedEmployee === protectedId;
+      remove.dataset.removeWorker = employee.selectedEmployee;
+      remove.setAttribute("aria-label", `Remove ${employee.name || "time card"}`);
+    }
+    for (const employee of employees) {
+      activateWorker(employee.selectedEmployee);
+      syncControls();
+      renderDays();
+    }
+    activateWorker(ids.includes(selected) ? selected : ids[0]);
+    syncControls();
+    root.querySelector<HTMLButtonElement>("#add-time-card")!.disabled = card.employees.length + 2 > 100;
+    updateResults();
+  }
+  function renderAllWorkerDays() {
+    const selected = card.selectedEmployee;
+    for (const employee of employeeCards(card)) {
+      activateWorker(employee.selectedEmployee);
+      syncControls();
+      renderDays();
+    }
+    activateWorker(selected);
+    syncControls();
+    updateResults();
+  }
   function locate(target: HTMLElement) {
     const entry = card.entries.find((e) => e.id === target.dataset.entry)!;
     const key =
@@ -468,6 +530,11 @@ export async function start() {
     return { entry, f };
   }
   function selectExistingInput(event: Event) {
+    activateWorkerFromTarget(event.target);
+    if (event.type === "focusin") {
+      syncControls();
+      renderValidation(getReport(card));
+    }
     const input = event.target;
     if (input instanceof HTMLInputElement && !input.readOnly && ["text", "number"].includes(input.type)) {
       input.focus();
@@ -486,6 +553,7 @@ export async function start() {
   });
   root.addEventListener("input", (event) => {
     const target = event.target as HTMLInputElement;
+    activateWorkerFromTarget(target);
     if (target.dataset.setting || target.dataset.card) target.setCustomValidity("");
     if (target.dataset.field || target.dataset.setting || target.dataset.card || target.dataset.content) {
       copiedSnapshot = "";
@@ -514,6 +582,7 @@ export async function start() {
   });
   root.addEventListener("focusout", (event) => {
     const target = event.target as HTMLInputElement;
+    activateWorkerFromTarget(target);
     if (target.dataset.field) {
       const { entry, f } = locate(target);
       commitField(card, entry, f);
@@ -558,6 +627,7 @@ export async function start() {
   });
   root.addEventListener("change", (event) => {
     const el = event.target as HTMLInputElement;
+    activateWorkerFromTarget(el);
     if (el === rangeStart || el === rangeEnd) return;
     if (!el.checkValidity()) {
       setFieldError(el, el.validationMessage);
@@ -585,7 +655,7 @@ export async function start() {
         return;
       }
     }
-    if (el.id === "overtime-rule") {
+    if (el.matches(".overtime-rule")) {
       card.settings.overtime = el.value !== "none";
       if (el.value !== "none") card.settings.mode = el.value as "weekly" | "daily" | "ca";
       card.settings.multiplier = 1.5;
@@ -619,7 +689,7 @@ export async function start() {
         return;
       (card as unknown as Record<string, unknown>)[key] = value;
       syncControls();
-      renderDays();
+      renderAllWorkerDays();
     } else if (el.dataset.setting) {
       const key = el.dataset.setting!;
       let value: unknown =
@@ -646,17 +716,21 @@ export async function start() {
       (card.settings as unknown as Record<string, unknown>)[key] = value;
       renderDays();
     }
+    if (!el.closest(".worker-card")) {
+      for (const employee of card.employees) {
+        employee.settings = {
+          ...card.settings,
+          auto: employee.settings.auto,
+          deduction: employee.settings.deduction,
+        };
+      }
+    }
+    renderAllWorkerDays();
     persist();
   });
   function valid() {
+    renderAllWorkerDays();
     const report = getTableReport(card);
-    const invalidEmployee = report.employees.find((employee) => employee.report.errors.length);
-    if (invalidEmployee && invalidEmployee.card.selectedEmployee !== card.selectedEmployee) {
-      selectEmployee(card, invalidEmployee.card.selectedEmployee);
-      syncControls();
-      renderDays();
-    }
-    updateResults();
     const invalid = Array.from(root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[aria-invalid="true"], select[aria-invalid="true"]')).find((control) => !control.disabled && !control.closest('dialog:not([open])'));
     if (invalid) {
       for (let parent = invalid.parentElement; parent; parent = parent.parentElement) {
@@ -681,6 +755,40 @@ export async function start() {
   root.addEventListener("click", async (event) => {
     const target = (event.target as HTMLElement).closest<HTMLElement>("button");
     if (!target) return;
+    activateWorkerFromTarget(target);
+    if (target.id === "add-time-card") {
+      if (card.employees.length + 2 > 100) return;
+      const previous = employeeCards(card).at(-1)!;
+      activateWorker(previous.selectedEmployee);
+      const source = structuredClone(card);
+      addEmployee(card, id());
+      card.settings = { ...source.settings };
+      card.name = source.name;
+      card.content = { ...source.content };
+      card.entries = source.entries.map(entry => ({
+        ...entry,
+        id: id(),
+        breaks: entry.breaks.map(rest => ({ ...rest, id: id() })),
+      }));
+      renderWorkerCards();
+      persist();
+      return;
+    }
+    if (target.dataset.removeWorker) {
+      if (removeEmployee(card, target.dataset.removeWorker)) {
+        renderWorkerCards();
+        persist();
+      }
+      return;
+    }
+    if (target.hasAttribute("data-choose-dates")) {
+      openDateRange();
+      return;
+    }
+    if (target.classList.contains("overtime-help")) {
+      overtimeDialog.showModal();
+      return;
+    }
     if (target.dataset.rangeDay) {
       const date = target.dataset.rangeDay;
       if (!choosingEnd || date < rangeStart.value) {
@@ -760,9 +868,6 @@ export async function start() {
     } else {
       changed = false;
       switch (target.id) {
-        case "choose-dates":
-          openDateRange();
-          break;
         case "close-date-range":
           dateDialog.close();
           break;
@@ -792,15 +897,11 @@ export async function start() {
           card.anchor = proposed.anchor;
           card.endDate = proposed.endDate;
           card.length = proposed.length;
-          syncControls();
-          renderDays();
+          renderAllWorkerDays();
           persist();
           dateDialog.close();
           break;
         }
-        case "overtime-help":
-          document.querySelector<HTMLDialogElement>("#overtime-dialog")!.showModal();
-          break;
         case "close-overtime-help":
           document.querySelector<HTMLDialogElement>("#overtime-dialog")!.close();
           break;
@@ -829,8 +930,7 @@ export async function start() {
               )
             ) {
               applyTemplate(card, template);
-              syncControls();
-              renderDays();
+              renderAllWorkerDays();
               persist();
             }
           } catch (error) {
@@ -938,8 +1038,7 @@ export async function start() {
             )
           ) {
             applyPreset(card, preset);
-            syncControls();
-            renderDays();
+            renderAllWorkerDays();
             persist();
           }
           break;
@@ -947,7 +1046,7 @@ export async function start() {
         case "clear":
           if (
             confirm(
-              "Clear all time entries, name, and date? Settings will be kept.",
+              "Clear this time card's entries, name, and date range? Settings will be kept.",
             )
           ) {
             const fresh = createCard(today());
@@ -955,14 +1054,14 @@ export async function start() {
               ...card,
               name: "",
               anchor: fresh.anchor,
+              endDate: fresh.endDate,
               entries: [],
               content: {},
               confirmed: [],
             };
             blocked = false;
 
-            syncControls();
-            renderDays();
+            renderWorkerCards();
             persist();
           }
           break;
@@ -1010,8 +1109,7 @@ export async function start() {
             document
               .querySelector("#share-preview")!
               .setAttribute("hidden", "");
-            syncControls();
-            renderDays();
+            renderWorkerCards();
             persist();
           }
           break;
@@ -1030,6 +1128,7 @@ export async function start() {
   root.addEventListener("keydown", (event) => {
     const e = event as KeyboardEvent;
     const target = e.target as HTMLElement;
+    activateWorkerFromTarget(target);
     if (target.dataset.handle && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
       e.preventDefault();
       const { entry, f } = locate(target);
@@ -1057,12 +1156,7 @@ export async function start() {
   document.querySelector<HTMLSelectElement>("#preset")!.value = routePreset(
     location.pathname,
   );
-  if (card.decimalFirst) {
-    const decimal = document.querySelector("#decimal")!;
-    decimal.parentElement!.parentElement!.prepend(decimal.parentElement!);
-  }
-  syncControls();
-  renderDays();
+  renderWorkerCards();
   document.querySelector("#save-status")!.textContent = message === "Saved on this browser" ? "" : message;
   async function previewShare() {
     readonlyCard = null;

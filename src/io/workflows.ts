@@ -120,6 +120,9 @@ export async function snapshotId(card: Card) {
     project,
     receipts,
     selectedEmployee,
+    anchor: ignoredAnchor,
+    endDate: ignoredEndDate,
+    length: ignoredLength,
     employees: ignored,
     ...table
   } = card;

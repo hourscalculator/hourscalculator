@@ -23,6 +23,7 @@ export function decodeCard(text: string): Card {
       decimalFirst: false,
       multi: false,
       selectedEmployee: "primary",
+      employeeOrder: ["primary"],
       employees: [],
       receipts: [],
     });
@@ -80,12 +81,22 @@ export function decodeCard(text: string): Card {
         content: employee.content ?? {},
         version: 2,
         selectedEmployee: employee.id,
+        employeeOrder: undefined,
         employees: [],
         receipts: [],
       }),
     );
     return currentEmployee(validated);
   });
+  if (c.employeeOrder !== undefined) {
+    if (
+      !Array.isArray(c.employeeOrder) ||
+      c.employeeOrder.length !== employeeIds.size ||
+      new Set(c.employeeOrder).size !== employeeIds.size ||
+      c.employeeOrder.some((employeeId) => !employeeIds.has(employeeId))
+    )
+      throw Error("Invalid employee order");
+  } else c.employeeOrder = [c.selectedEmployee, ...c.employees.map((employee) => employee.id)];
   for (const receipt of c.receipts) decodeReceipt(JSON.stringify(receipt));
   if (c.emptyRows !== undefined && (!Array.isArray(c.emptyRows) || c.emptyRows.some((key: unknown) => typeof key !== "string"))) throw Error("Invalid empty day state");
   if (c.syncedRows !== undefined && (!c.syncedRows || typeof c.syncedRows !== "object" || Array.isArray(c.syncedRows) || Object.values(c.syncedRows).some((value) => typeof value !== "string"))) throw Error("Invalid synchronized day state");
@@ -186,21 +197,29 @@ const csvCell = (value: unknown) =>
     .replace(/^[\s]*[=+@-]/, "'$&")
     .replace(/"/g, '""')}"`;
 export function csv(card: Card): string {
-  if (getTableReport(card).errors.length)
+  const table = getTableReport(card);
+  if (table.errors.length)
     throw Error("Fix input errors before exporting");
   if (card.multi && card.employees.length)
     return (
       employeeCards(card)
-        .map((c, index) =>
-          index
+        .map((employee, index) => {
+          const c = {
+            ...employee,
+            name: employee.name || `Worker ${index + 1}`,
+          };
+          return index
             ? csv({ ...c, multi: false }).slice(1)
-            : csv({ ...c, multi: false }),
-        )
+            : csv({ ...c, multi: false });
+        })
         .join("\r\n") +
       "\r\n" +
-      ["Table total cents", getTableReport(card).pay, card.currency]
-        .map(csvCell)
-        .join(",")
+      [
+        ["Table total minutes", table.total, "hh:mm", hhmm(table.total)],
+        ["Table total cents", table.pay, card.currency],
+      ]
+        .map((row) => row.map(csvCell).join(","))
+        .join("\r\n")
     );
   const r = getReport(card);
   if (r.errors.length) throw Error("Fix input errors before exporting");
@@ -211,7 +230,7 @@ export function csv(card: Card): string {
     ["Client", card.client, "Project", card.project],
     [
       "Complete settings",
-      JSON.stringify({ ...card, entries: undefined, employees: undefined }),
+      JSON.stringify({ ...card, entries: undefined, employees: undefined, employeeOrder: undefined }),
     ],
     ["Status", r.status],
     ["Period", dateString(r.range.start), dateString(r.range.end - 1), card.length],

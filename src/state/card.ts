@@ -34,6 +34,7 @@ export type Card = {
   decimalFirst: boolean;
   multi: boolean;
   selectedEmployee: string;
+  employeeOrder?: string[];
   employees: Employee[];
   receipts: Receipt[];
   name: string;
@@ -57,6 +58,9 @@ export type Employee = Pick<
   | "billing"
   | "client"
   | "project"
+  | "anchor"
+  | "endDate"
+  | "length"
 > & { id: string };
 export type Receipt = {
   version: 1;
@@ -85,19 +89,29 @@ export function currentEmployee(card: Card): Employee {
     billing: card.billing,
     client: card.client,
     project: card.project,
+    anchor: card.anchor,
+    endDate: card.endDate,
+    length: card.length,
   };
 }
 export function employeeCards(card: Card) {
   const employees = card.multi
     ? [currentEmployee(card), ...card.employees]
     : [currentEmployee(card)];
-  return employees.map((employee) => ({
-    ...card,
-    ...employee,
-    selectedEmployee: employee.id,
-    content: employee.content ?? {},
-    employees: [],
-  }));
+  const byId = new Map(employees.map((employee) => [employee.id, employee]));
+  const ordered = (card.employeeOrder ?? [])
+    .map((employeeId) => byId.get(employeeId))
+    .filter((employee): employee is Employee => Boolean(employee));
+  const orderedIds = new Set(ordered.map((employee) => employee.id));
+  return [...ordered, ...employees.filter((employee) => !orderedIds.has(employee.id))].map(
+    (employee) => ({
+      ...card,
+      ...employee,
+      selectedEmployee: employee.id,
+      content: employee.content ?? {},
+      employees: [],
+    }),
+  );
 }
 export function selectEmployee(card: Card, employeeId: string) {
   const next = card.employees.find((e) => e.id === employeeId);
@@ -109,6 +123,11 @@ export function selectEmployee(card: Card, employeeId: string) {
   Object.assign(card, values, { selectedEmployee: id, content: next.content ?? {} });
 }
 export function addEmployee(card: Card, employeeId: string) {
+  card.employeeOrder ??= [
+    card.selectedEmployee,
+    ...card.employees.map((employee) => employee.id),
+  ];
+  if (!card.employeeOrder.includes(employeeId)) card.employeeOrder.push(employeeId);
   card.employees.push({
     ...currentEmployee(card),
     id: employeeId,
@@ -125,6 +144,23 @@ export function addEmployee(card: Card, employeeId: string) {
   });
   card.multi = true;
   selectEmployee(card, employeeId);
+}
+export function removeEmployee(card: Card, employeeId: string) {
+  card.employeeOrder ??= [
+    card.selectedEmployee,
+    ...card.employees.map((employee) => employee.id),
+  ];
+  if (
+    card.employeeOrder[0] === employeeId ||
+    !card.employeeOrder.includes(employeeId)
+  )
+    return false;
+  if (card.selectedEmployee === employeeId)
+    selectEmployee(card, card.employeeOrder[0]);
+  card.employees = card.employees.filter((employee) => employee.id !== employeeId);
+  card.employeeOrder = card.employeeOrder.filter((id) => id !== employeeId);
+  card.multi = card.employees.length > 0;
+  return true;
 }
 export function getTableReport(card: Card) {
   const employees = employeeCards(card).map((c) => ({
@@ -161,6 +197,7 @@ export function createCard(today: string): Card {
     decimalFirst: false,
     multi: false,
     selectedEmployee: "primary",
+    employeeOrder: ["primary"],
     employees: [],
     receipts: [],
     name: "",
@@ -272,6 +309,15 @@ export function getReport(card: Card) {
   const draftIssues: FieldIssue[] = [];
   const selectedIds = new Set<string>();
   const range = cardPeriod(card);
+  const fieldValue = (f: Field) =>
+    f.dirty
+      ? f.raw.trim()
+        ? parseTime(
+            f.raw,
+            card.format === "12" && card.showAmPm ? f.ampm : undefined,
+          )
+        : null
+      : f.value;
   for (const e of card.entries) {
     const date = dayNumber(e.row);
     if (date < range.contextStart - 1 || date >= range.contextEnd) continue;
@@ -279,7 +325,7 @@ export function getReport(card: Card) {
     const selected = date >= range.start && date < range.end;
     if (selected) selectedIds.add(e.id);
     if (!selected && (fields.some((f) => f.value === null || f.dirty) || e.breaks.some((rest) => [rest.start, rest.end].some((f) => f.dirty || (f.raw && f.value === null))))) continue;
-    const active = fields.some((f) => f.raw.trim() || f.value !== null);
+    const active = fields.some((f) => f.raw.trim() || f.value !== null || f.dirty);
     if (!active) {
       if (e.breaks.some((b) => !b.automatic && (b.start.raw || b.end.raw))) {
         draftErrors.push(`${e.id}: break needs a work period`);
@@ -287,37 +333,45 @@ export function getReport(card: Card) {
       }
       continue;
     }
-    if (fields.some((f) => f.value === null || f.dirty)) {
+    if (fields.some((f) => fieldValue(f) === null)) {
       draftErrors.push(`${e.id}: complete valid In and Out times`);
       for (const field of ["start", "end"] as const) {
-        if (e[field].value === null || e[field].dirty) draftIssues.push({ segmentId: e.id, field, message: e[field].raw.trim() ? `Enter a valid ${field === "start" ? "In" : "Out"} time.` : `Enter an ${field === "start" ? "In" : "Out"} time.` });
+        if (fieldValue(e[field]) === null) draftIssues.push({ segmentId: e.id, field, message: e[field].raw.trim() ? `Enter a valid ${field === "start" ? "In" : "Out"} time.` : `Enter an ${field === "start" ? "In" : "Out"} time.` });
       }
       continue;
     }
+    const start = fieldValue(e.start)!;
+    const end = fieldValue(e.end)!;
     const breaks: Segment["breaks"] = [];
     for (const b of e.breaks) {
       if (
         !b.start.raw &&
         !b.end.raw &&
         b.start.value === null &&
-        b.end.value === null
+        b.end.value === null &&
+        !b.start.dirty &&
+        !b.end.dirty
       )
         continue;
-      if ([b.start, b.end].some((f) => f.value === null || f.dirty)) {
+      if ([b.start, b.end].some((f) => fieldValue(f) === null)) {
         draftErrors.push(`${e.id}: complete break times`);
         for (const field of ["start", "end"] as const) {
-          if (b[field].value === null || b[field].dirty) draftIssues.push({ segmentId: e.id, breakId: b.id, field, message: `Enter a valid break ${field} time.` });
+          if (fieldValue(b[field]) === null) draftIssues.push({ segmentId: e.id, breakId: b.id, field, message: `Enter a valid break ${field} time.` });
         }
-      } else breaks.push({ id: b.id, start: b.start.value!, end: b.end.value!, paid: b.paid });
+      } else breaks.push({ id: b.id, start: fieldValue(b.start)!, end: fieldValue(b.end)!, paid: b.paid });
     }
     if (e.dailyBreakMinutes) {
-      breaks.push({ start: e.start.value!, end: (e.start.value! + e.dailyBreakMinutes) % 1440, paid: false });
+      breaks.push({ start, end: (start + e.dailyBreakMinutes) % 1440, paid: false });
     }
     segments.push({
       id: e.id,
-      date: e.actualDate ?? e.row,
-      start: e.start.value!,
-      end: e.end.value!,
+      date:
+        e.actualDate ??
+        (e.start.dirty
+          ? dateString(date + (start < card.settings.dayStart ? 1 : 0))
+          : e.row),
+      start,
+      end,
       breaks,
     });
   }
