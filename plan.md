@@ -1,11 +1,14 @@
-# 修复多个 time card 表单回归
+# 修复 Cloudflare Workers 构建与部署
 
-- 状态：自动检查完成，待浏览器与人工验收。
-- 按本轮明确授权修复。复用现有员工卡、日期日历和统计计算。
-- 每张卡保留姓名、周期、工时表。共享 hourly rate / overtime 放在卡片列表后。
-- 删除 Whole month 选项，保留底层旧存档周期兼容。
-- 日期按钮按属性存在性触发，修复新增卡渲染访问共享控件失败。
-- 恢复原 Report 和统计指标布局，合并所有卡的每日时长和金额。
-- 自查已核对模板、事件、共享设置和统计消费者。
-- typecheck、44 项单元测试通过。使用示例 SITE_URL 的构建通过。
-- 浏览器启动遭系统沙箱权限阻止，交互验收尚未完成。
+- 状态：执行中。用户已授权修复并确认暂用 https://hourscalculator.io。
+- 小型任务，仅修改 vite.config.ts、wrangler.jsonc、README.md、.env.example 和本计划。
+- 复用现有 Vite SEO 生成入口，SITE_URL 未设置时使用暂定域名，保留环境覆盖及校验。
+- 配置 Workers 静态资源目录 dist，匹配 npm run build 与 npx wrangler deploy。
+- 验证无环境变量构建、覆盖域名构建、SEO 检查、类型检查、单元测试及 Wrangler dry-run。
+- 计划自查：范围、构建入口与 SEO 消费者一致，无 A/B 问题。
+- 线上部署与域名绑定需要 Cloudflare 账户环境，未验证部分据实披露。
+- 实现自查完成：构建复用现有 SEO 入口，Workers assets 指向实际产物，无额外运行时。
+- 默认构建、SITE_URL 覆盖构建、typecheck、44 项单元测试、diff 检查通过。
+- SEO 检查存在入口页 /with-lunch 链接断言失败，相关页面内容未在本轮修改。
+- Wrangler dry-run 的 npx 命令未返回结果，部署预检与线上部署尚未验证。
+- 状态：修复完成，待 Cloudflare 构建部署验收。

@@ -10,13 +10,13 @@ Use Node 22 LTS. Run `npm ci`, then `npm run dev` and open the URL printed by Vi
 
 Run `npm run typecheck`, `npm run test:unit`, `SITE_URL=https://example.test npm run build`, `npm run test:seo`, then `npm run test:e2e`. Install browsers with `npx playwright install chromium webkit`. Playwright tests use the built preview and cover both browsers. The mobile performance test uses Chromium CDP throttling.
 
-## Cloudflare Pages
+## Cloudflare Workers
 
-1. Connect this GitHub repository to a Pages project using the dashboard.
-2. Select the Vite preset or configure build command `npm run build` and output directory `dist`.
-3. Set Node version 22 and the build environment variable `SITE_URL` to the real HTTPS origin, without a trailing path.
-4. Rebuild after configuring the final domain so canonical, sitemap and robots share that origin.
-5. Inspect the generated deployment before enabling production traffic.
+1. Connect this repository to a Cloudflare Workers project.
+2. Set the build command to `npm run build` and deploy command to `npx wrangler deploy`.
+3. Use Node 22. `wrangler.jsonc` configures `dist` as the static asset directory.
+4. The build defaults to `https://hourscalculator.io`, the planned domain. Set the build environment variable `SITE_URL` to override it. Rebuild when the public domain changes so canonical, sitemap and robots use the correct origin.
+5. Register the domain and bind it to the Worker in Cloudflare before using that address. Inspect the Workers deployment URL after deployment.
 
 The app uses static files and browser storage. Name and time data enter a URL fragment only when the user creates a share snapshot. Anyone with that snapshot link can read its data. The app has no backend. Production publication and Git commits are outside this execution contract.
 

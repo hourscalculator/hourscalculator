@@ -1,9 +1,7 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { defineConfig } from "vite";
-export default defineConfig(({ command }) => {
-  const raw = process.env.SITE_URL;
-  if (command === "build" && !raw)
-    throw Error("Set SITE_URL to the public site origin before building");
+export default defineConfig(() => {
+  const raw = process.env.SITE_URL || "https://hourscalculator.io";
   const origin = raw ? new URL(raw).origin : "";
   if (raw && (!/^https?:\/\//.test(raw) || new URL(raw).pathname !== "/"))
     throw Error("SITE_URL must be an HTTP(S) origin");
