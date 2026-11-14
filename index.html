@@ -6,15 +6,15 @@
     <title>Time Card Calculator – Free Hours &amp; Pay Calculator</title>
     <meta
       name="description"
-      content="Calculate work hours, breaks, overtime, decimal hours and estimated gross pay. Save locally, print your time card, export CSV or share a snapshot."
+      content="Free time card calculator for work hours, lunch breaks, weekly and biweekly overtime, decimal hours and estimated gross pay. Print or export CSV."
     />
     <link rel="canonical" href="%SITE_URL%/" />
     <meta name="theme-color" content="#f5f5f0" />
   </head>
   <body>
     <header class="site-header">
-      <a href="#calculator" class="brand">hours<span>calculator</span></a
-      ><a href="#how-to-use">Help</a>
+      <a href="/" class="brand">hours<span>calculator</span></a
+      ><a href="#help">Help</a>
     </header>
     <main>
       <div class="heading">
@@ -39,13 +39,13 @@
                       data-card="name"
                       placeholder="Your name"
                       maxlength="200" /></label
-                  ><label><span>Date</span><button type="button" class="date-range-control" data-choose-dates aria-label="Choose report date range"></button></label>
+                  ><label><span>Client name</span><input data-card="client" maxlength="200" /></label><label><span>Project name</span><input data-card="project" maxlength="200" /></label><label><span>Date</span><button type="button" class="date-range-control" data-choose-dates aria-label="Choose report date range"></button></label>
                 </div>
                 <button class="remove-worker" type="button" data-remove-worker hidden aria-label="Remove time card">×</button>
               </div>
               <div class="settings-grid quick-settings">
                 <div class="quick-group">
-                  <label class="biweekly">Report period<select data-card="length">
+                  <label class="biweekly" data-period-anchor>Report period<select data-card="length">
                     <option value="1">1 week</option>
                     <option value="2">2 weeks</option>
                     <option value="3">3 weeks</option>
@@ -54,7 +54,7 @@
                   </select></label>
                 </div>
                 <div class="quick-group">
-                  <label class="check"><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label>
+                  <label class="check" data-lunch-anchor><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label>
                   <label><span class="minutes-control"><input aria-label="Daily break minutes" data-setting="deduction" type="number" min="0" max="1439" value="30" /> minutes</span></label>
                 </div>
               </div>
@@ -192,29 +192,7 @@
             hidden
           />
           <p id="share-note"></p>
-          <details>
-            <summary>Templates and approval receipts</summary>
-            <button id="readonly-share">Create read-only approval snapshot</button
-          >
-            <div class="settings-grid">
-              <label
-                >Template name<input
-                  id="template-name"
-                  maxlength="100" /></label
-              ><button id="save-template">Save rules template</button
-              ><label>Saved templates<select id="templates"></select></label
-              ><button id="apply-template">Preview and apply template</button
-              ><button id="delete-template">Delete template</button>
-            </div>
-            <label>Receipt link or JSON<input id="receipt-input" /></label
-            ><button id="import-receipt">Import receipt</button>
-            <div id="receipts"></div>
-            <p>
-              Receipts are filled in by link holders and stored locally. No
-              identity authentication is provided. Send snapshot and receipt
-              links by copying them into your email.
-            </p>
-          </details>
+
         </div>
         <section id="readonly-view" hidden>
           <h2>Read-only snapshot</h2>
@@ -243,10 +221,10 @@
           /></div>
         </section>
       </section>
-      <details class="help-section" id="help-details"><summary>Help &amp; calculation details</summary>
+      <div class="help-section">
       <article id="help">
         <section id="about">
-          <h2>About</h2>
+          <h2>About this time card calculator</h2>
           <p id="about-copy">
             Time Card Calculator helps you turn everyday clock entries into a
             clear record of hours and estimated earnings. Start with your first
@@ -263,7 +241,7 @@
           </p>
         </section>
         <section id="how-to-use">
-          <h2>How to use</h2>
+          <h2>How to use the time card calculator</h2>
           <ol>
             <li>Choose a date and the first day of your workweek.</li>
             <li>
@@ -410,15 +388,25 @@
             </p>
           </details>
         </section>
-        <section id="shortcuts">
-          <h2>Calculator shortcuts</h2>
+        <section><h2>Time card calculator checks before payroll</h2>
+<p>Review the reporting dates before sending a time card. A correct total attached to the wrong period can still delay payroll or an invoice. Set the first day of the workweek, check the first and last dates shown in the report, and compare the entries with your own work record. For a two week card, review each week separately before checking the combined total. Weekly overtime depends on the hours in each workweek.</p>
+<p>Check clock entries in pairs. Arrival and departure times should describe the same work period, including shifts that continue past midnight. Review the AM and PM selections when using twelve hour time. If a total looks unexpectedly large, inspect those selections before changing the hours. Add separate work periods when you leave and return during the day, and record breaks at their actual times.</p>
+<h2>Time card calculator for client invoices</h2>
+<p>Freelancers can add a client name and project name to each time card. Use a separate card when you need a separate record for another client or project. These labels travel with the saved card and appear in CSV and printed reports, helping the recipient match the hours to the right assignment. Add daily content when a client needs a short explanation of the work performed.</p>
+<p>Before attaching a report to an invoice, check the hourly rate, currency and billing mode. Estimated gross pay reflects the calculator settings and entered time. Compare that amount with the agreed billing terms. Export the CSV for a spreadsheet review or use Print / PDF to save a readable report with the client and project details. Keep a downloaded copy with your invoice records.</p>
+</section><section><h2>Compare time card calculator totals with your records</h2>
+<p>When a payroll total differs, start with one day rather than adjusting the final amount. Compare the arrival time, departure time and each break interval with the source record. Check whether a break was paid and whether an automatic interval still needs editing. After the daily minutes agree, compare the week containing that day. This helps identify whether the difference comes from entered time, the reporting boundary or overtime settings.</p>
+<p>Decimal display can introduce another source of confusion. Thirty minutes is half an hour, so seven hours and thirty minutes appears as 7.50 hours. A display of 7.30 represents a different duration. The report keeps hours and minutes alongside decimal hours so you can compare both representations. Changing display precision preserves the minutes used in calculations. Check the total converted from minutes when rounded daily values appear to add up differently.</p>
+<p>For shared work, confirm the client and project labels before copying a snapshot link. A snapshot captures the current entries for the recipient to review. If you later edit a draft, send a fresh link when the recipient needs those changes. Browser storage keeps the working draft on that browser, so download a CSV or PDF when you need a record outside the current device.</p></section>
+<section id="shortcuts">
+          <h2>Time card calculator shortcuts</h2>
           <p>
             On this page <a href="#lunch">Lunch break settings</a> ·
             <a href="#biweekly">Biweekly period</a> ·
             <a href="#decimal-settings">Decimal display</a>
           </p>
         </section>
-      </article></details>
+      </article></div>
     </main>
     <section id="print-report"></section>
     <footer>Time Card Calculator · Hours &amp; estimated gross pay</footer>

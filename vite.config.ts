@@ -1,3 +1,4 @@
+import { topics, relatedPages } from "./src/seo/content";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { defineConfig } from "vite";
 export default defineConfig(() => {
@@ -20,6 +21,7 @@ export default defineConfig(() => {
           });
         },
         transformIndexHtml(html) {
+          html = html.replace("</article>", relatedPages() + "</article>");
           const faq = [
             ...(
               html.match(/<section id="faq">([\s\S]*?)<\/section>/)?.[1] ?? ""
@@ -59,44 +61,23 @@ export default defineConfig(() => {
         closeBundle() {
           const home = readFileSync("dist/index.html", "utf8");
           {
-            for (const [path, title, copy] of [
-              [
-                "with-lunch",
-                "Time Card Calculator With Lunch",
-                "Automatically deduct a 30 minute unpaid lunch after 6 hours of work. Manual unpaid breaks replace the automatic deduction.",
-              ],
-              [
-                "biweekly",
-                "Biweekly Time Card Calculator",
-                "Calculate two weeks of work with weekly overtime thresholds applied separately to each week.",
-              ],
-              [
-                "decimal",
-                "Decimal Hours Calculator",
-                "See decimal hours first, with actual minutes and hours:minutes alongside. Display rounding preserves pay.",
-              ],
-            ]) {
+            for (const { path, title, description, body, faq } of topics) {
+              const faqHtml = `<section id="faq"><h2>${title} FAQ</h2>${faq.map(([question, answer]) => `<details><summary>${question}</summary><p>${answer}</p></details>`).join("")}</section>`;
               let source = home
-                .replaceAll(origin + '/"', origin + "/" + path + '"')
+                .replace(/rel="canonical" href="[^"]*"/, `rel="canonical" href="${origin}/${path}/"`)
+                .replace(/(<meta\s+name="description"\s+content=")[^"]*/, `$1${description}`)
                 .replace(/<title>.*?<\/title>/s, `<title>${title}</title>`)
-                .replace(
-                  /<h1[^>]*>.*?<\/h1>/s,
-                  `<h1>${title}</h1><p>${copy}</p>`,
-                );
-              const question = `How does ${title} start a new card?`;
-              source = source.replace(
-                '<section id="faq">',
-                `<section id="faq"><details><summary>${question}</summary><p>${copy}</p></details>`,
-              );
+                .replace(/<h1[^>]*>.*?<\/h1>/s, `<h1>${title}</h1>`)
+                .replace(/<article id="help">[\s\S]*?<\/article>/, `<article id="help">${body}${faqHtml}<p>For other reporting periods and settings, use the <a href="/">time card calculator</a>.</p>${relatedPages()}</article>`);
               source = source.replace(
                 /(<script type="application\/ld\+json">)(.*?)(<\/script>)/s,
                 (_, open, json, close) => {
                   const schema = JSON.parse(json);
-                  schema["@graph"][1].mainEntity.push({
-                    "@type": "Question",
-                    name: question,
-                    acceptedAnswer: { "@type": "Answer", text: copy },
-                  });
+                  schema["@graph"][0].url = `${origin}/${path}/`;
+                  schema["@graph"][1].mainEntity = faq.map(([name, text]) => ({
+                    "@type": "Question", name,
+                    acceptedAnswer: { "@type": "Answer", text },
+                  }));
                   return open + JSON.stringify(schema) + close;
                 },
               );
@@ -106,7 +87,7 @@ export default defineConfig(() => {
           }
           writeFileSync(
             "dist/sitemap.xml",
-            `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["", "with-lunch", "biweekly", "decimal"].map((path) => `<url><loc>${origin}/${path}</loc></url>`).join("")}</urlset>`,
+            `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["", "with-lunch", "biweekly", "decimal"].map((path) => `<url><loc>${origin}/${path ? path + "/" : ""}</loc></url>`).join("")}</urlset>`,
           );
           writeFileSync(
             "dist/robots.txt",

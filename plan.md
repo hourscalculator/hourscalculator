@@ -1,14 +1,23 @@
-# 修复 Cloudflare Workers 构建与部署
+# 页面内容、导航与客户项目字段修复
 
-- 状态：执行中。用户已授权修复并确认暂用 https://hourscalculator.io。
-- 小型任务，仅修改 vite.config.ts、wrangler.jsonc、README.md、.env.example 和本计划。
-- 复用现有 Vite SEO 生成入口，SITE_URL 未设置时使用暂定域名，保留环境覆盖及校验。
-- 配置 Workers 静态资源目录 dist，匹配 npm run build 与 npx wrangler deploy。
-- 验证无环境变量构建、覆盖域名构建、SEO 检查、类型检查、单元测试及 Wrangler dry-run。
-- 计划自查：范围、构建入口与 SEO 消费者一致，无 A/B 问题。
-- 线上部署与域名绑定需要 Cloudflare 账户环境，未验证部分据实披露。
-- 实现自查完成：构建复用现有 SEO 入口，Workers assets 指向实际产物，无额外运行时。
-- 默认构建、SITE_URL 覆盖构建、typecheck、44 项单元测试、diff 检查通过。
-- SEO 检查存在入口页 /with-lunch 链接断言失败，相关页面内容未在本轮修改。
-- Wrangler dry-run 的 npx 命令未返回结果，部署预检与线上部署尚未验证。
-- 状态：修复完成，待 Cloudflare 构建部署验收。
+- 状态：已批准，执行中。
+- 中型任务。范围为 index.html、vite.config.ts、src/seo/content.ts、src/ui/app.ts、src/ui/report.ts、必要样式、scripts/seo.mjs、相关现有测试和本计划。
+- 复用 Vite 静态页面生成入口、Card.client/project、现有字段绑定、CSV 和打印报告。保留计算规则。
+- URL 统一尾斜杠，修复锚点、logo 和长尾互链。Help 常显，删除 Templates and approval receipts 栏及其界面绑定。
+- 首页说明 1200–1800 词，三张长尾独立正文各 400–600 词且各 5 FAQ，独立 Description，FAQ schema 与可见内容一致。
+- 客户项目字段接入现有保存恢复、CSV 与逐卡打印。
+- 验证：先以 SEO / 浏览器回归记录 RED，再实现，最终构建、SEO、类型、完整单元与浏览器测试，检查 diff。
+- 计划自查：真实入口与复用边界已核对，无 A/B。线上重定向需单独核验，浏览器验收据实记录。
+
+## 实现自查与验证
+
+- 已完成全部批准改动。复用 Card 的 client/project、CSV 与逐卡报告，未改变计算规则。
+- 自查发现并修复客户/项目字段输入后立即刷新丢失、模板栏删除后遗留 receipt-input 初始化、长尾页 Help 目标不存在的问题。锚点在多卡下保持唯一。
+- 首页说明 1292 词，长尾说明分别 486、537、530 词，含各页 5 条 FAQ。FAQ schema 与页面内容一致。
+- RED：旧产物不满足尾斜杠 canonical；客户项目浏览器回归捕获即时保存缺失。修复后 GREEN。
+- 最终构建、类型检查、SEO、44 项单元测试、diff 检查通过；Chromium/WebKit 本轮 8 项浏览器回归全部通过，390px 截图已检查。
+- 完整浏览器首轮 14 通过、49 失败、3 跳过，随后本轮字段与 compact 检查修复并复验通过。HEAD 基线先复现抽查 8 项旧失败；扩展基线另有 31 失败、4 通过、3 跳过，其中部分 WebKit 为导航超时，未将其全部认定为相同根因。
+- 线上域名 DNS 解析失败，未验证实际 301 与最终 200。代码及静态产物统一采用批准的尾斜杠路径。
+- 状态：本轮实现与专属自动验证完成，待统一人工验收。完整浏览器套件未全绿，线上部署验收待完成。
+
+- 最终自查：本轮 A 项已修正并复验，无新增 B 项。完整旧套件失败及线上 HTTP 验证作为未覆盖风险保留。

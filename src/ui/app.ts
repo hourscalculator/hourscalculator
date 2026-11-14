@@ -7,16 +7,7 @@ import {
   employeeCards,
   removeEmployee,
 } from "../state/card";
-import {
-  makeTemplate,
-  applyTemplate,
-  loadTemplates,
-  saveTemplates,
-  makeReceipt,
-  decodeReceipt,
-  receiptStatus,
-  type Template,
-} from "../io/workflows";
+import { makeReceipt } from "../io/workflows";
 import { applyPreset, routePreset, type Preset } from "../state/presets";
 import { hhmm, dateString } from "../domain/core";
 import { dayNumber } from "../domain/report";
@@ -40,7 +31,6 @@ import {
   encodeShare,
   decodeShare,
   encodeReceiptLink,
-  decodeReceiptLink,
 } from "../io/delivery";
 const id = () => crypto.randomUUID();
 const today = () => {
@@ -108,38 +98,13 @@ export async function start() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  async function shareLink(mode: "readonly") {
-    const hash = await encodeShare(card, mode);
-    const box = document.querySelector<HTMLInputElement>("#share-url")!;
-    box.hidden = false;
-    box.value = location.origin + location.pathname + "#" + hash;
-    box.select();
-  }
-  function refreshTemplates() {
-    try {
-      document.querySelector("#templates")!.innerHTML = loadTemplates(storage)
-        .map(
-          (t) => `<option value="${escape(t.id)}">${escape(t.name)}</option>`,
-        )
-        .join("");
-    } catch (error) {
-      showError(error);
+  function updateShortcutAnchors() {
+    for (const [selector, anchor] of [["[data-period-anchor]", "biweekly"], ["[data-lunch-anchor]", "lunch"]]) {
+      root.querySelectorAll<HTMLElement>(selector).forEach((element, index) => {
+        if (index === 0) element.id = anchor;
+        else element.removeAttribute("id");
+      });
     }
-  }
-  function selectedTemplate(): Template | undefined {
-    return loadTemplates(storage).find(
-      (t) =>
-        t.id === document.querySelector<HTMLSelectElement>("#templates")!.value,
-    );
-  }
-  async function renderReceipts() {
-    const rows = await Promise.all(
-      card.receipts.map(
-        async (r) =>
-          `<p>${escape(r.decision)} · ${escape(r.name)} · ${escape(r.time)} · ${escape(r.note)} · ${await receiptStatus(card, r)}</p>`,
-      ),
-    );
-    document.querySelector("#receipts")!.innerHTML = rows.join("");
   }
   function updateCopiedState() {
     const copied = copiedSnapshot !== "" && copiedSnapshot === JSON.stringify(card);
@@ -439,7 +404,6 @@ export async function start() {
     root.querySelector("#daily-report")!.innerHTML = markup;
     document.querySelector("#print-report")!.innerHTML = tableReport(card, true);
     root.querySelector<HTMLSelectElement>(".overtime-rule")!.disabled = card.billing !== "hourly";
-    void renderReceipts();
   }
   function syncControls() {
     root.querySelector<HTMLSelectElement>(".overtime-rule")!.value = card.settings.overtime === false ? "none" : card.settings.mode;
@@ -502,6 +466,7 @@ export async function start() {
       syncControls();
       renderDays();
     }
+    updateShortcutAnchors();
     activateWorker(ids.includes(selected) ? selected : ids[0]);
     syncControls();
     root.querySelector<HTMLButtonElement>("#add-time-card")!.disabled = card.employees.length + 2 > 100;
@@ -574,8 +539,8 @@ export async function start() {
       f.dirty = true;
       updateResults();
       persist();
-    } else if (target.dataset.card === "name") {
-      card.name = target.value;
+    } else if (["name", "client", "project"].includes(target.dataset.card ?? "")) {
+      card[target.dataset.card as "name" | "client" | "project"] = target.value;
       updateResults();
       persist();
     } else if (target.dataset.setting || target.dataset.card) renderValidation(getReport(card));
@@ -675,7 +640,7 @@ export async function start() {
         commitField(card, entry, f);
       }
       renderDays();
-    } else if (el.dataset.card === "name") {
+    } else if (["name", "client", "project"].includes(el.dataset.card ?? "")) {
       return;
     } else if (el.dataset.card) {
       const key = el.dataset.card as keyof Card;
@@ -743,9 +708,6 @@ export async function start() {
     }
     return report.errors.length === 0;
   }
-  document.querySelector('.site-header a[href="#how-to-use"]')!.addEventListener("click", () => {
-    document.querySelector<HTMLDetailsElement>("#help-details")!.open = true;
-  });
   const overtimeDialog = document.querySelector<HTMLDialogElement>("#overtime-dialog")!;
   overtimeDialog.addEventListener("click", (event) => {
     if (event.target !== overtimeDialog) return;
@@ -905,60 +867,6 @@ export async function start() {
         case "close-overtime-help":
           document.querySelector<HTMLDialogElement>("#overtime-dialog")!.close();
           break;
-        case "save-template":
-          try {
-            const name = document
-              .querySelector<HTMLInputElement>("#template-name")!
-              .value.trim();
-            if (!name || name.length > 100)
-              throw Error("Enter a template name up to 100 characters");
-            const templates = loadTemplates(storage);
-            templates.push(makeTemplate(card, name, id()));
-            saveTemplates(storage, templates);
-            refreshTemplates();
-          } catch (error) {
-            showError(error);
-          }
-          break;
-        case "apply-template":
-          try {
-            const template = selectedTemplate();
-            if (
-              template &&
-              confirm(
-                `Apply these settings? ${JSON.stringify(template.values)} ${JSON.stringify(template.settings)}`,
-              )
-            ) {
-              applyTemplate(card, template);
-              renderAllWorkerDays();
-              persist();
-            }
-          } catch (error) {
-            showError(error);
-          }
-          break;
-        case "delete-template":
-          try {
-            const template = selectedTemplate();
-            if (template && confirm("Delete this template?")) {
-              saveTemplates(
-                storage,
-                loadTemplates(storage).filter((t) => t.id !== template.id),
-              );
-              refreshTemplates();
-            }
-          } catch (error) {
-            showError(error);
-          }
-          break;
-        case "readonly-share":
-          if (valid())
-            try {
-              await shareLink("readonly");
-            } catch (error) {
-              showError(error);
-            }
-          break;
         case "make-receipt":
           try {
             if (!readonlyCard) throw Error("Open a read-only snapshot first");
@@ -977,22 +885,6 @@ export async function start() {
               "#" +
               (await encodeReceiptLink(receipt));
             box.hidden = false;
-          } catch (error) {
-            showError(error);
-          }
-          break;
-        case "import-receipt":
-          try {
-            const raw =
-              document.querySelector<HTMLInputElement>("#receipt-input")!.value;
-            const receipt = raw.includes("#receipt=")
-              ? await decodeReceiptLink("#receipt=" + raw.split("#receipt=")[1])
-              : decodeReceipt(raw);
-            if (card.receipts.length >= 100)
-              throw Error("Receipt limit reached");
-            card.receipts.push(receipt);
-            persist();
-            await renderReceipts();
           } catch (error) {
             showError(error);
           }
@@ -1197,9 +1089,5 @@ export async function start() {
   window.addEventListener("hashchange", () => {
     void previewShare();
   });
-  refreshTemplates();
-  if (location.hash.startsWith("#receipt="))
-    document.querySelector<HTMLInputElement>("#receipt-input")!.value =
-      location.href;
   await previewShare();
 }
