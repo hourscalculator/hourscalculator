@@ -1,19 +1,17 @@
-# 全站 SEO 与专题内容补齐
+# 暂缓收录未完善的专题页
 
-状态：自动执行完成，待统一人工验收。用户已明确授权依次执行。保留已有未提交修改。
-范围：index.html、vite.config.ts、src/seo/content.ts、scripts/seo.mjs、public 图标和分享卡、必要锚点逻辑、plan.md。
-复用现有模板构建与专题数据，不改计算规则。已读取三模块 PRD，影响为公共导航、说明和导出隐私描述。
-1. 补静态验收断言并运行确认 RED。
-2. 顺序补 head、锚点导航、九地址 sitemap 与政策页、双周和小数正文。
-3. build、SEO、typecheck、unit、HTTP 检查与 diff 自查。
-验收：元数据一致、静态锚点、面包屑、政策页、九个尾斜杠地址、60 行转换表、400–600 词与专题差异。
-计划主 agent 自查通过。浏览器和线上人工验收待完成。
+状态：自动执行完成，待统一人工验收。用户已明确要求在正文补齐前，从 sitemap 移除 `/with-breaks/`、`/free/`、`/overtime-calculator/`。
 
-## 本轮验证与自查
-- RED：构建产物 sitemap 仅四条，新增九条断言失败。
-- GREEN：build、test:seo、typecheck、66 项 unit、git diff --check 通过。
-- 静态产物九页元数据一致，60 行表格通过；五词连续短语重合率双周 2.6%、小数 3.4%。该指标为本轮采用的相似度定义。
-- 自查修正：分钟表断言限定正文，避免误读计算器报告表。
-- 分享图为本地品牌卡 1200×630。新增三个计算器路径复用通用计算器。
-- 本地 HTTP 服务和请求被沙箱 EPERM 阻止，九地址 200、跳转点击、浏览器视觉及线上部署均未验证。未运行完整浏览器 E2E。
-- 保留所有既有修改，未提交 Git。
+范围：`vite.config.ts`、`scripts/seo.mjs`、`plan.md`。只调整 sitemap 收录与对应验收断言；保留这三页的生成和预览路由。Detail、快速填写、Report 的产品需求和正文不变。
+
+1. 将 SEO 验收改为 6 个 sitemap 地址，并断言三条待完善地址不在其中；先运行构建和 SEO 验收，确认当前实现因仍包含这三条而失败（RED）。
+2. 从 sitemap 生成列表中移除三条地址；重新构建并通过 SEO 验收（GREEN）。
+3. 检查 sitemap 其余地址、页面生成、`git diff --check` 与最终 diff。
+
+验收：sitemap 保留首页、`with-lunch`、`biweekly`、`decimal`、`privacy`、`terms` 共 6 条，且不包含三条待完善地址；三页本身仍照常生成。验证命令：`npm run build`、`npm run test:seo`、`git diff --check`。
+
+## 执行证据与自查
+
+- RED：构建产物仍有 9 条 sitemap 地址，SEO 断言识别出三条待移除地址并失败。
+- GREEN：`npm run build`、`npm run test:seo`、`git diff --check` 通过；产物 sitemap 保留 6 条，三个专题页仍生成。
+- 主 agent 实现自查：无 A/B 级问题；未改动计算、三个模块 PRD 或页面正文。浏览器与线上人工验收未执行。

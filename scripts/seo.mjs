@@ -24,7 +24,12 @@ for (const faq of schema["@graph"][1].mainEntity) {
 const canonical = html.match(/rel="canonical" href="(.*?)"/)[1];
 assert.ok(canonical.startsWith("https://"));
 const sitemap = readFileSync("dist/sitemap.xml", "utf8");
-assert.equal((sitemap.match(/<loc>/g) || []).length, 9);
+const sitemapUrls = [...sitemap.matchAll(/<loc>(.*?)<\/loc>/g)].map(([, url]) => url);
+const sitemapPaths = ["", "with-lunch", "biweekly", "decimal", "privacy", "terms"];
+assert.deepEqual(
+  sitemapUrls,
+  sitemapPaths.map((path) => `${canonical}${path ? `${path}/` : ""}`),
+);
 assert.ok(sitemap.includes(canonical));
 assert.ok(
   readFileSync("dist/robots.txt", "utf8").includes(canonical + "sitemap.xml"),
@@ -123,4 +128,4 @@ const decimalPage = readFileSync('dist/decimal/index.html','utf8');
 assert.equal((article(decimalPage).match(/<tbody>([\s\S]*?)<\/tbody>/)[1].match(/<tr>/g)||[]).length,60);
 assert.match(html, /id="biweekly"[^>]*[^]*?Report period/);
 assert.match(html, /id="lunch"/);
-assert.equal((sitemap.match(/<lastmod>2026-11-15<\/lastmod>/g)||[]).length,9);
+assert.equal((sitemap.match(/<lastmod>2026-11-15<\/lastmod>/g)||[]).length,6);

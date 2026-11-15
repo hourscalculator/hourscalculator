@@ -113,7 +113,7 @@ export default defineConfig(() => {
           }
           writeFileSync(
             "dist/sitemap.xml",
-            `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["", "with-lunch", "biweekly", "decimal", "with-breaks", "free", "overtime-calculator", "privacy", "terms"].map((path) => `<url><loc>${origin}/${path ? path + "/" : ""}</loc><lastmod>2026-11-15</lastmod></url>`).join("")}</urlset>`,
+            `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["", "with-lunch", "biweekly", "decimal", "privacy", "terms"].map((path) => `<url><loc>${origin}/${path ? path + "/" : ""}</loc><lastmod>2026-11-15</lastmod></url>`).join("")}</urlset>`,
           );
           writeFileSync(
             "dist/robots.txt",
