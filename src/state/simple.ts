@@ -3,6 +3,7 @@ import { addEntry, cardPeriod, commitField, getReport, type Card } from './card'
 export type SimpleMeta = {
     step: number;
     customizeTimes?: boolean;
+    dailyTimesSelected?: boolean;
     customBreakSelected?: boolean;
     defaultStart: {
         raw: string;
@@ -16,9 +17,12 @@ export type SimpleMeta = {
     customTimes: string[];
     customBreaks: string[];
 };
-export function simpleDates(card: Card) { return cardPeriod(card).dates; }
+export function simpleDates(card: Card) {
+    const range = cardPeriod(card);
+    return range.dates.filter(date => dayNumber(date) >= range.start && dayNumber(date) < range.end);
+}
 export function simpleCompatible(card: Card) {
-    return card.entries.every(entry => simpleDates(card).includes(entry.row)) && !card.multi && card.length === '1' && card.settings.dayStart === 0 && card.settings.weekStart === 1 && card.entries.every(e => e.breaks.every(rest => rest.automatic) && card.entries.filter(other => other.row === e.row).length === 1);
+    return card.entries.every(entry => simpleDates(card).includes(entry.row)) && !card.multi && (card.length === '1' || card.length === 'custom') && card.settings.dayStart === 0 && card.settings.weekStart === 1 && card.entries.every(e => e.breaks.every(rest => rest.automatic) && card.entries.filter(other => other.row === e.row).length === 1);
 }
 export function simpleBreakMinutes(card: Card, entry: Card['entries'][number]) {
     return card.settings.auto ? card.settings.deduction : entry.dailyBreakMinutes ?? 0;
@@ -34,6 +38,7 @@ export function createSimpleMeta(card: Card, initializeDays = false): SimpleMeta
     const first = [...active].sort((a,b) => frequency.get(timeKey(b))! - frequency.get(timeKey(a))!)[0];
     return {
         step: 1,
+        dailyTimesSelected: card.entries.every(e => e.start.value !== null && e.end.value !== null && !e.start.dirty && !e.end.dirty) && active.some(e => e.start.value !== first?.start.value || e.end.value !== first?.end.value),
         defaultStart: first ? { raw: first.start.raw, ampm: first.start.ampm } : { raw: '8:00', ampm: 'AM' },
         defaultEnd: first ? { raw: first.end.raw, ampm: first.end.ampm } : { raw: '4:30', ampm: 'PM' },
         defaultBreak: first ? simpleBreakMinutes(card, first) : 0,

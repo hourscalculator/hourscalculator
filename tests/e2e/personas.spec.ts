@@ -56,6 +56,7 @@ test('HR biweekly 40 and 42 hours yields 82 hours and $1826', async ({ page }) =
   await openDetailed(page);
   await page.locator('[data-card="name"]').fill('Jordan');
   await page.locator('[data-card="length"]').selectOption('2');
+  await page.locator('.rate-settings .overtime-rule').selectOption('weekly');
   await page.locator('.rate-settings [data-setting="rate"]').fill('22');
   await page.locator('[data-setting="auto"]').check();
   const monday = page.locator('.day[data-date="2026-11-02"]');

@@ -25,6 +25,7 @@ test('Detail Friday edit survives wizard back, continue, close and refresh', asy
   await page.locator('[data-break-preset][value="30"]').check();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.locator('[data-simple-rate]').fill('20');
+  await page.locator('[data-simple-overtime]').selectOption('weekly');
   await page.getByRole('button', { name: 'Calculate Hours', exact: true }).last().click();
   await page.getByRole('link', { name: 'Want to adjust the details? Click here to open Detailed Calculator', exact: true }).click();
   const friday = page.locator('.day[data-date="2026-11-13"]');

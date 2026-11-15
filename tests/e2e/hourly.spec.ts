@@ -9,7 +9,7 @@ test('Monday fills empty weekdays and restores with mobile summary', async ({ pa
   await monday.locator('[data-field="end"]').blur();
   await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('40:00');
   await expect(page.locator('.meridiem').first()).toBeVisible();
-  await expect(page.locator('#report-body')).toContainText('Mon');
+  await expect(page.locator('#report-body')).toBeEmpty();
   await page.reload();
   await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('40:00');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

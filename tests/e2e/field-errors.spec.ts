@@ -17,7 +17,7 @@ test('custom weeks clip dates and errors point to fields', async ({page}) => {
   await page.locator('#csv').click();
   await expect(rate).toHaveAttribute('aria-invalid','true');
   await expect(rate.locator('xpath=ancestor::label').locator('.field-message')).toBeVisible();
-  await page.locator('.rate-settings').screenshot({path:'test-results/rate-errors.png'});
+  await page.locator('#calculator .rate-settings').screenshot({path:'test-results/rate-errors.png'});
   await rate.fill('20');
   await rate.blur();
   const download = page.waitForEvent('download');

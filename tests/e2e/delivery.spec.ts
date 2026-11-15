@@ -31,7 +31,7 @@ test("reload, CSV download, copied report and print", async ({ page }) => {
   await expect(page.locator("#readonly-view")).toBeVisible();
   await expect(page.locator("#editor")).toBeHidden();
   await expect(page.locator("#approval-receipt")).toBeHidden();
-  await expect(page.locator("input:visible, select:visible")).toHaveCount(0);
+  await expect(page.locator("input:visible:not([readonly]), select:visible")).toHaveCount(0);
   await expect(page.locator("#readonly-report")).toContainText("Alex");
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('time-card-v1')!).name)).toBe('Local');
   await page.screenshot({ path: "test-results/shared-report.png", fullPage: true });
@@ -77,8 +77,8 @@ test("populated month prints across multiple pages", async ({
   await page.reload();
   await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("240:00");
   await page.emulateMedia({ media: "print" });
-  await expect(page.locator("#print-report .employee-report .summary-table > tbody:not(.pay-summary) > tr:not(.report-total)")).toHaveCount(30);
-  await expect(page.locator("#print-report .employee-report .summary-table > tbody:not(.pay-summary) > .report-total")).toContainText("240:00");
+  await expect(page.locator("#print-report .employee-report > .summary-table:not(.report-identity) > tbody:not(.pay-summary) > tr:not(.report-total)")).toHaveCount(30);
+  await expect(page.locator("#print-report .employee-report > .summary-table:not(.report-identity) > tbody:not(.pay-summary) > .report-total")).toContainText("240:00");
   await page.screenshot({
     path: `test-results/month-print-${browserName}.png`,
     fullPage: true,

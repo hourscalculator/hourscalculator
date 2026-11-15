@@ -42,7 +42,7 @@ test('simple defaults, personalized Tuesday and breaks total forty hours', async
   await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('40:00');
 });
 
-test('personalized time and breaks survive default edits', async ({ page }) => {
+test('daily time source ignores default edits after expansion', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('8:00');
@@ -53,7 +53,7 @@ test('personalized time and breaks survive default edits', async ({ page }) => {
   await starts.nth(1).fill('9:00');
   await ends.nth(1).fill('5:30');
   await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('7:00');
-  await expect(starts.nth(0)).toHaveValue('7:00');
+  await expect(starts.nth(0)).toHaveValue('8:00');
   await expect(starts.nth(1)).toHaveValue('9:00');
   await expect(ends.nth(1)).toHaveValue('5:30');
   await page.getByRole('button',{name:'Continue',exact:true}).click();
@@ -66,7 +66,7 @@ test('personalized time and breaks survive default edits', async ({ page }) => {
   await expect(breaks.nth(1)).toHaveValue('60');
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
-  await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('43:30');
+  await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('39:30');
 });
 
 test('Sunday overnight is a complete seven and a half hour shift', async ({ page }) => {
@@ -201,7 +201,7 @@ test('Monday personalization keeps inherited defaults across modes', async ({ pa
   await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('7:00');
   await page.getByText('Do your hours vary by day? Click here to expand and customize',{exact:true}).click();
   await expect(starts.first()).toHaveValue('9:00');
-  await expect(starts.nth(1)).toHaveValue('7:00');
+  await expect(starts.nth(1)).toHaveValue('8:00');
 });
 
 test('wizard shows step tiles, background editor, meridiem switches and pay options', async ({ page, browserName }) => {
@@ -412,4 +412,123 @@ test('result reuses historical report and original delivery button styling', asy
     expect(await actual.getAttribute('class')).toBe(await original.getAttribute('class'));
     expect(await actual.evaluate(styles)).toEqual(await original.evaluate(styles));
   }
+});
+
+test('optional wizard fields, date range, mobile overtime and copied checkmark', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  for(let step=1;step<4;step++) await page.getByRole('button',{name:'Continue',exact:true}).click();
+  const wizard=page.locator('#simple-wizard');
+  await expect(wizard.getByRole('heading',{name:'Add some optional information?'})).toBeVisible();
+  await expect(wizard.locator('.optional')).toHaveCount(4);
+  const overtime=wizard.locator('[data-simple-overtime]');
+  await expect(overtime).toHaveValue('none');
+  await overtime.scrollIntoViewIfNeeded();
+  await expect(overtime).toBeInViewport();
+  await page.screenshot({path:test.info().outputPath('optional-fields-mobile.png')});
+  await overtime.selectOption('weekly');
+  await expect(overtime).toHaveValue('weekly');
+  await overtime.selectOption('none');
+  await wizard.locator('[data-simple-name]').fill('Alex');
+  await expect(wizard.locator('.simple-period > .field-label')).toHaveCSS('font-weight','700');
+  const originalPeriod = await wizard.locator('[data-simple-period-label]').textContent();
+  await wizard.getByRole('button',{name:'Choose period dates'}).click();
+  await page.locator('[data-range-day]').first().click();
+  await page.locator('#close-date-range').click();
+  await expect(wizard.locator('[data-simple-period-label]')).toHaveText(originalPeriod!);
+  await wizard.getByRole('button',{name:'Choose period dates'}).click();
+  await expect(page.locator('#date-range-dialog')).toBeVisible();
+  await page.locator('#range-end').fill('2026-12-20');
+  await page.locator('#range-start').fill('2026-12-14');
+  await page.locator('#range-end').fill('2026-12-20');
+  await page.locator('#apply-dates').click();
+  await wizard.getByRole('button',{name:'Calculate Hours',exact:true}).click();
+  const result=page.locator('.simple-result');
+  await expect(result.locator('.report-identity')).toContainText('Alex');
+  await expect(result.locator('.readonly-time-card caption')).toHaveText('Time Card');
+  await expect(result.locator('.report-card-heading')).toHaveCount(0);
+  await expect(result.locator('.report-billing-settings input')).toHaveCount(2);
+  expect(await result.locator('.report-billing-settings input').evaluateAll(inputs => inputs.every(input => (input as HTMLInputElement).readOnly))).toBe(true);
+  expect(await result.locator('.report-identity').evaluate(element => parseFloat(getComputedStyle(element).borderTopLeftRadius))).toBeGreaterThan(0);
+  const identityBox = (await result.locator('.report-identity').boundingBox())!;
+  expect((await result.locator('.readonly-time-card').boundingBox())!.y).toBeGreaterThan(identityBox.y + identityBox.height);
+
+  await expect(result.locator('.report-identity')).toContainText('2026-12-14 – 2026-12-20');
+  await expect(result.locator('.readonly-time-card')).toContainText('2026-12-14');
+  const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('time-card-v1')!));
+  expect(draft.entries.every((entry:{row:string;actualDate:string})=>entry.row===entry.actualDate)).toBe(true);
+  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{}}}));
+  const share=result.locator('[data-simple-action="share"]');
+  await share.click();
+  await expect(share).toHaveClass(/copied/);
+  expect(await share.evaluate(el=>getComputedStyle(el,'::before').content)).toBe('"✓"');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:'test-results/optional-result-mobile.png',fullPage:true});
+});
+
+test('SE work days wrap and remain readable', async ({page}) => {
+ await page.goto('/');
+ for (const width of [320,375,390]) {
+  await page.setViewportSize({width,height:667});
+  const tiles=page.locator('.simple-work-days label');
+  const first=(await tiles.first().boundingBox())!;
+  expect((await tiles.last().boundingBox())!.y).toBeGreaterThan(first.y);
+  for(const tile of await tiles.all()) expect((await tile.boundingBox())!.width).toBeGreaterThanOrEqual(64);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:test.info().outputPath(`se-days-${width}.png`)});
+ }
+});
+
+test('opened daily times stay authoritative after collapse and ignore invalid defaults', async ({page}) => {
+ await page.goto('/'); await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.locator('[data-custom-times] summary').click();
+ await page.locator('[data-time="end"][data-date]:not([data-date=""])').last().fill('6:00');
+ await page.locator('[data-custom-times] summary').click();
+ await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('999');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+ await page.locator('[data-break-preset][value="30"]').check();
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
+ await expect(page.locator('.simple-result .report-total').first()).toContainText('41:30');
+});
+
+test('opening unchanged daily times remains selected after close and refresh', async ({page}) => {
+ await page.goto('/'); await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.locator('[data-custom-times] summary').click();
+ await page.locator('[data-custom-times] summary').click();
+ await page.getByRole('button',{name:'Close wizard'}).click();
+ await page.reload();
+ await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
+ await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('999');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+});
+
+test('legacy hidden incomplete daily times cannot block unexpanded defaults', async ({page}) => {
+ const {createCard}=await import('../../src/state/card');
+ const {createSimpleMeta,setSimpleDefault}=await import('../../src/state/simple');
+ const card=createCard('2026-11-09'); const meta=createSimpleMeta(card,true);
+ setSimpleDefault(card,meta,'start','8:00','AM'); setSimpleDefault(card,meta,'end','4:30','PM');
+ card.entries[4].end={raw:'',value:null,ampm:'PM',dirty:false};
+ card.emptyRows=['primary:2026-11-14','primary:2026-11-15'];
+ const legacy={...meta,step:2,customizeTimes:false,customTimesUsed:true,customTimes:[card.entries[4].row]};
+ Reflect.deleteProperty(legacy,'dailyTimesSelected');
+ await page.addInitScript(({card,legacy})=>{
+  localStorage.setItem('time-card-v1',JSON.stringify(card));
+  localStorage.setItem('time-card-simple-ui-v1',JSON.stringify({mode:'detailed',visited:true,meta:legacy}));
+ },{card,legacy});
+ await page.goto('/');
+ await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
+ await expect(page.locator('[data-custom-times]')).not.toHaveAttribute('open','');
+ await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toHaveValue('8:00');
+ await expect(page.getByRole('textbox',{name:'Clock Out',exact:true})).toHaveValue('4:30');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+ const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!));
+ expect(stored.entries.map((entry:{start:{value:number};end:{value:number}})=>[entry.start.value,entry.end.value])).toEqual([[480,990],[480,990],[480,990],[480,990],[480,990]]);
+ await page.locator('[data-break-preset][value="30"]').check();
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
+ await expect(page.locator('.simple-result .report-total').first()).toContainText('40:00');
 });

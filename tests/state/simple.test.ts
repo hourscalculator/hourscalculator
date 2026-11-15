@@ -64,11 +64,11 @@ test('Simple print preserves Sunday full shift and hourly gross', async () => {
     expect(output).toContain('$150.00');
     expect(tableReport(card, true)).toContain('>1:30</td>');
 });
-test('result-only report restores named employee summary without time-card sections', async () => {
+test('result-only report shows named identity and time-card sections', async () => {
  const { tableReport } = await import('../../src/ui/report');
  const card=createCard('2026-11-09'); card.name='Alice';
- expect(tableReport(card,true)).toContain('<h2>Alice</h2>');
- expect(tableReport(card,true)).not.toContain('readonly-time-card');
+ expect(tableReport(card,true)).toContain('<td>Alice</td>');
+ expect(tableReport(card,true)).toContain('readonly-time-card');
 });
 test('historical result table keeps weekly title before formula headers', async () => {
  const {tableReport}=await import('../../src/ui/report');
@@ -110,4 +110,43 @@ test('Detail aggregate leaves daily rows to shared Report', async () => {
  const {summaryReport}=await import('../../src/ui/report');
  const output=summaryReport(createCard('2026-11-09'),true);
  expect(output).not.toContain('<time');
+});
+
+test('report wraps optional identity in a table and includes clock punches', async () => {
+    const { tableReport } = await import('../../src/ui/report');
+    const card = createCard('2026-11-09');
+    card.name = 'Alex';
+    const meta = createSimpleMeta(card, true);
+    setSimpleDefault(card, meta, 'start', '8:00', 'AM');
+    setSimpleDefault(card, meta, 'end', '4:30', 'PM');
+    const output = tableReport(card, true, true);
+    expect(output).toContain('class="summary-table report-identity"');
+    expect(output).toContain('readonly-time-card');
+    expect(output).toContain('scope="col">In</th>');
+});
+
+test('custom simple periods contain only chosen dates and remain editable', async () => {
+    const { simpleDates } = await import('../../src/state/simple');
+    const card = createCard('2026-11-10');
+    card.length = 'custom';
+    card.endDate = '2026-11-12';
+    const meta = createSimpleMeta(card, true);
+    setSimpleDefault(card, meta, 'start', '8', 'AM');
+    setSimpleDefault(card, meta, 'end', '4', 'PM');
+    expect(simpleDates(card)).toEqual(['2026-11-10', '2026-11-11', '2026-11-12']);
+    expect(simpleCompatible(card)).toBe(true);
+    expect(simpleReport(card).total).toBe(1440);
+});
+test('shared report uses one identity table, minute breaks and readonly billing settings', async () => {
+ const {tableReport}=await import('../../src/ui/report');
+ const card=createCard('2026-11-09'); const meta=createSimpleMeta(card,true);
+ setSimpleDefault(card,meta,'start','8','AM'); setSimpleDefault(card,meta,'end','4:30','PM'); setSimpleBreak(card,meta,30);
+ card.name='Alex'; card.settings.rate=2000;
+ const output=tableReport(card,true,true);
+ expect(output).toContain('<caption>Time Card</caption>');
+ expect(output).not.toContain('report-card-heading');
+ expect(output).toContain('report-billing-settings');
+ expect(output).toContain('Hourly rate');
+ expect(output).toContain('readonly');
+ expect(output).toContain('30 min');
 });

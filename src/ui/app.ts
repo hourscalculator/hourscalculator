@@ -293,7 +293,9 @@ export async function start() {
   const dateDialog = document.querySelector<HTMLDialogElement>("#date-range-dialog")!;
   const rangeStart = document.querySelector<HTMLInputElement>("#range-start")!;
   const rangeEnd = document.querySelector<HTMLInputElement>("#range-end")!;
+  let applyChosenPeriod: ((start: string, end: string) => void) | undefined;
   dateDialog.addEventListener("close", () => {
+    applyChosenPeriod = undefined;
     rangeStart.disabled = true;
     rangeEnd.disabled = true;
   });
@@ -315,7 +317,8 @@ export async function start() {
     setFieldError(rangeEnd, rangeEnd.validity.valid ? "" : rangeEnd.validationMessage);
     document.querySelector("#range-instruction")!.textContent = choosingEnd ? "Select an end date." : "Select a start date, then an end date.";
   }
-  function openDateRange() {
+  function openDateRange(apply?: (start: string, end: string) => void) {
+    applyChosenPeriod = apply;
     rangeStart.disabled = false;
     rangeEnd.disabled = false;
     const range = cardPeriod(card);
@@ -438,7 +441,7 @@ export async function start() {
     const markup = summaryReport(card, true);
     root.querySelector("#daily-report")!.innerHTML = markup;
     const reportBody = tableReport(card, true);
-    root.querySelector("#report-body")!.innerHTML = reportBody;
+    root.querySelector("#report-body")!.innerHTML = "";
     document.querySelector("#print-report")!.innerHTML = reportBody;
     syncVisibleFields();
     void renderReceipts();
@@ -1002,6 +1005,11 @@ export async function start() {
             (rangeStart.validity.valid ? rangeEnd : rangeStart).focus();
             break;
           }
+          if (applyChosenPeriod) {
+            applyChosenPeriod(rangeStart.value, rangeEnd.value);
+            dateDialog.close();
+            break;
+          }
           const proposed = { ...card, anchor: rangeStart.value, endDate: rangeEnd.value, length: "custom" };
           const range = cardPeriod(proposed);
           const weeks = (range.end - range.start) / 7;
@@ -1258,7 +1266,7 @@ export async function start() {
     document.querySelector<HTMLElement>("#editor")!.hidden = false;
     document.querySelector<HTMLElement>("#readonly-view")!.hidden = true;
     const reportBody = tableReport(card, true);
-    root.querySelector("#report-body")!.innerHTML = reportBody;
+    root.querySelector("#report-body")!.innerHTML = "";
     document.querySelector("#print-report")!.innerHTML = reportBody;
     syncVisibleFields();
     void renderReceipts();
@@ -1296,6 +1304,7 @@ export async function start() {
   refreshTemplates();
   await previewShare();
   mountSimple({
+    choosePeriod: openDateRange,
     onDelivery: (action) => runDelivery(action, true),
     getCard: () => card,
     replaceCard: (next) => { card = next; },

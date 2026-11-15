@@ -816,7 +816,7 @@ input::placeholder { color: #859087; font-weight: 400; font-size: 15px; }
 .rate-settings .quick-group { display: flex; flex-direction: column; align-items: stretch; gap: 18px; }
 input[aria-invalid="true"], select[aria-invalid="true"] { border: 2px solid #c63838; background: #fff5f4; }
 .field-message { display: block; color: #ab2929; font-size: 14px; font-weight: 400; user-select: text; white-space: normal; }
-#share.copied::before { content: "✓"; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 50%; background: #34804a; color: white; font-size: 15px; vertical-align: middle; }
+:is(#share, [data-simple-action="share"]).copied::before { content: "✓"; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 50%; background: #34804a; color: white; font-size: 15px; vertical-align: middle; }
 input[aria-invalid="true"]:focus-visible, select[aria-invalid="true"]:focus-visible { outline-color: #c63838; }
 
 .date-range-control { width: 100%; min-height: 44px; text-align: left; font: inherit; background: white; }
@@ -887,7 +887,7 @@ input[aria-invalid="true"]:focus-visible, select[aria-invalid="true"]:focus-visi
 #simple-wizard .simple-break-options input { width: 18px; height: 18px; }
 .simple-detailed-link { margin-top: 24px; background: none; border: 0; text-decoration: underline; padding: 0; }
 @media(max-width:600px) { #simple-wizard { width: 100vw; } #simple-wizard .simple-work-days { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-#simple-wizard .simple-work-days { grid-template-columns: repeat(7,minmax(0,1fr)); gap: 8px; }
+#simple-wizard .simple-work-days { grid-template-columns: repeat(auto-fit,minmax(64px,1fr)); gap: 8px; }
 #simple-wizard .simple-work-days label { min-height: 110px; padding: 12px 4px; gap: 8px; }
 #simple-wizard .simple-work-days input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 #simple-wizard .simple-work-days label:has(input:focus-visible) { outline: 3px solid #52783e; outline-offset: 3px; }
@@ -971,3 +971,20 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
 .report-identity h2, .report-identity p { margin: .5rem 0; }
 
 #report-body .summary-table { width: 100%; table-layout: fixed; background: white; }
+
+#simple-wizard .simple-optional-fields { display: grid; gap: 20px; }
+#simple-wizard .field-label, #simple-wizard .overtime-label { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+#simple-wizard .optional { margin-left: auto; font-size: 14px; font-weight: 400; }
+#simple-wizard .overtime-rule { position: static; width: 100%; min-height: 48px; font-size: 16px; touch-action: manipulation; }
+#simple-wizard .rate-settings { margin: 0; padding: 0; border: 0; background: none; }
+:is(.simple-result, #readonly-report, #print-report) table.report-identity { display: table; width: 100%; }
+
+#simple-wizard [data-simple-period-label]::after { content: " ▾"; }
+
+#simple-wizard .simple-period .date-range-control { display: block; width: 100%; margin-top: 8px; text-align: left; }
+
+:is(#report-body, #readonly-report, #print-report, .simple-result) table.summary-table.report-identity { display: table; border-collapse: separate; border-spacing: 0; border: 1px solid #c8cfca; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.report-billing-settings { display: grid; gap: 12px; margin: 16px 0; }
+.report-billing-settings label { display: grid; gap: 8px; }
+.report-billing-settings input { width: 100%; }
+#simple-wizard .simple-period > .field-label { font-weight: 700; }

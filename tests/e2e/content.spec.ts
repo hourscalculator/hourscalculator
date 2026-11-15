@@ -5,8 +5,8 @@ test('named card, optional content, print and shared report match', async ({page
   await page.setViewportSize({width:390,height:844});
   await openDetailed(page);
   await expect(page.locator('[data-setting="rate"]')).toHaveValue('');
-  await expect(page.locator('.rate-input .rate-currency')).toHaveText('$');
-  await expect(page.locator('#report-body thead')).not.toContainText('Content');
+  await expect(page.locator('#calculator .rate-input .rate-currency')).toHaveText('$');
+  await expect(page.locator('#print-report .employee-report > .summary-table thead')).not.toContainText('Content');
   const name = await page.locator('[data-card="name"]').boundingBox();
   const settings = await page.locator('.quick-settings').boundingBox();
   expect(name!.y).toBeLessThan(settings!.y);
@@ -14,17 +14,22 @@ test('named card, optional content, print and shared report match', async ({page
   const monday = page.locator('.day').first();
   await monday.locator('[data-add-content]').click();
   await monday.locator('[data-content]').fill('Equipment setup <review>');
-  await expect(page.locator('#report-body thead')).toContainText('Content');
-  await expect(page.locator('#report-body .report-content').first()).toHaveText('Equipment setup <review>');
+  await expect(page.locator('#print-report .employee-report > .summary-table thead')).toContainText('Content');
+  await expect(page.locator('#print-report .report-content').first()).toHaveText('Equipment setup <review>');
   await page.reload();
   await expect(monday.locator('[data-content]')).toHaveValue('Equipment setup <review>');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({path:'test-results/content-mobile.png',fullPage:true});
-  const printed = await page.locator('#print-report').innerHTML();
+  const reportHtml = async (selector: string) => page.locator(selector).evaluate(element => {
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('[style=""]').forEach(node => node.removeAttribute('style'));
+    return clone.innerHTML;
+  });
+  const printed = await reportHtml('#print-report');
   await page.locator('#share').click();
   await expect(page.locator('#save-status')).toHaveText('Share link copied');
   const url = await page.evaluate(() => (window as unknown as {copied:string}).copied);
   await page.goto(url);
-  await expect.poll(() => page.locator('#readonly-report').innerHTML()).toBe(printed);
+  await expect.poll(() => reportHtml('#readonly-report')).toBe(printed);
   await expect(page.locator('#readonly-report')).toContainText('Equipment setup <review>');
 });
