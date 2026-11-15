@@ -744,7 +744,7 @@ input::placeholder { color: #859087; font-weight: 400; font-size: 15px; }
 .break-handle { top: -6px; z-index: 2; }
 .break-bar { background: #a5c898; }
 #close-overtime-help { position: absolute; top: 10px; right: 10px; width: 40px; min-height: 40px; padding: 0; border: 0; font-size: 28px; }
-#overtime-help-title { padding-right: 35px; }
+#dlg-ot { padding-right: 35px; }
 .shift-bar { background: #d5e6f8; border-radius: 999px; }
 .break-bar { background: #dcebd6; border: 1px solid #80b96f; border-radius: 999px; }
 .help-section { max-width: 780px; margin: 28px auto; }
@@ -753,7 +753,7 @@ input::placeholder { color: #859087; font-weight: 400; font-size: 15px; }
 .clear { border-color: #bf3d3d; background: white; color: #bf3d3d; }
 .clear:hover { background: white; }
 #save-status:empty, #share-note:empty { display: none; }
-.report-mode #readonly-view > h2, .report-mode #readonly-report > h1, .report-mode .help-section { display: none; }
+.report-mode #readonly-view > .dialog-title, .report-mode #readonly-report > h1, .report-mode .help-section { display: none; }
 :is(#readonly-report, .simple-result) .summary-table { font-size: 18px; table-layout: fixed; }
 .report-mode .site-header a[href="#help"] { display: none; }
 #calculator { padding: 0; border: 0; background: transparent; box-shadow: none; }
@@ -790,7 +790,7 @@ input::placeholder { color: #859087; font-weight: 400; font-size: 15px; }
 #date-range-dialog { width: min(460px, calc(100% - 24px)); max-height: 90vh; overflow: auto; border: 1px solid #b8c9dd; border-radius: 12px; padding: 18px; color: #23312b; }
 #date-range-dialog::backdrop { background: #15233580; }
 .date-range-heading, .calendar-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.date-range-heading h2 { margin: 0; }
+.date-range-heading .dialog-title { margin: 0; }
 #close-date-range { padding: 0; width: 40px; border: 0; font-size: 26px; }
 .range-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
 .range-inputs label { font-size: 15px; }
@@ -851,7 +851,7 @@ input[aria-invalid="true"]:focus-visible, select[aria-invalid="true"]:focus-visi
 #simple-wizard::backdrop { background: #0008; }
 .simple-dialog-heading { display: flex; justify-content: space-between; align-items: flex-start; padding: 1.25rem; border-bottom: 1px solid #ddd; }
 .simple-dialog-heading p { margin: 0; }
-.simple-dialog-heading h2 { margin: .5rem 0 0; }
+.simple-dialog-heading .dialog-title { margin: .5rem 0 0; }
 .simple-dialog-body { padding: 1.25rem; overflow-y: auto; max-height: calc(90dvh - 190px); }
 .simple-work-days { display: grid; gap: .75rem; }
 .simple-work-days label { display: flex; flex-direction: row; align-items: center; gap: .75rem; }
@@ -988,3 +988,6 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
 .report-billing-settings label { display: grid; gap: 8px; }
 .report-billing-settings input { width: 100%; }
 #simple-wizard .simple-period > .field-label { font-weight: 700; }
+
+.dialog-title { font-size: 20px; letter-spacing: -0.3px; font-weight: bold; margin-block: .83em; }
+#dlg-receipt { font-size: 1.17em; margin-block: 1em; }

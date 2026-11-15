@@ -206,7 +206,7 @@ export function createCard(today: string): Card {
     length: "1",
     format: "12",
     showAmPm: true,
-    defaultSegments: 1,
+    defaultSegments: 2,
     defaultBreaks: 0,
     settings: {
       mode: "weekly",

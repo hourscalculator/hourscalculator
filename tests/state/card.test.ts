@@ -114,3 +114,7 @@ test('explicit lunch replaces the same legacy minute deduction', () => {
  entry.breaks.push({id:'rest',paid:false,start:{raw:'12:00',value:720,ampm:'PM',dirty:false},end:{raw:'12:30',value:750,ampm:'PM',dirty:false}});
  expect(getReport(card).total).toBe(450);
 });
+
+test("default work periods match the static first screen", () => {
+  expect(createCard("2026-11-09").defaultSegments).toBe(2);
+});

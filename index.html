@@ -18,7 +18,8 @@
     </header>
     <main>
       <div class="heading">
-        <h1>Free Time Card Calculator</h1>
+        <h1>Time Card Calculator</h1>
+        <p class="lede">Free, no signup — calculates hours, lunch breaks, weekly and biweekly overtime, decimal hours and gross pay.</p>
       </div>
       <section id="calculator" aria-label="Time card calculator">
         <div id="editor">
@@ -45,9 +46,9 @@
               </div>
               <div class="settings-grid quick-settings">
                 <div class="quick-group">
-                  <label class="biweekly" data-period-anchor>Report period<select data-card="length">
+                  <label id="biweekly" class="biweekly" data-period-anchor>Report period<select data-card="length">
                     <option value="1">1 week</option>
-                    <option value="2">2 weeks</option>
+                    <option value="2" selected>2 weeks</option>
                     <option value="3">3 weeks</option>
                     <option value="4">4 weeks</option>
                     <option value="month">Calendar month</option>
@@ -55,7 +56,7 @@
                   </select></label>
                 </div>
                 <div class="quick-group">
-                  <label class="check" data-lunch-anchor><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label>
+                  <label id="lunch" class="check" data-lunch-anchor><input data-setting="auto" type="checkbox" checked="checked" /> Automatic daily unpaid break</label>
                   <label><span class="minutes-control"><input aria-label="Daily break minutes" data-setting="deduction" type="number" min="0" max="1439" value="30" /> minutes</span></label>
                 </div>
               </div>
@@ -67,15 +68,15 @@
               <div class="rate-settings">
                 <div class="quick-group">
                   <label><span class="field-label">Hourly rate <span class="optional">optional</span></span><span class="rate-input"><span class="rate-currency" aria-hidden="true">$</span><input data-setting="rate" type="number" min="0" max="1000000" step="0.01" placeholder="" /></span></label>
-                  <label><span class="overtime-label">Overtime <button type="button" class="overtime-help" aria-label="Explain overtime" aria-haspopup="dialog">?</button></span><select class="overtime-rule"><option value="none">No overtime</option><option value="weekly" selected>Over 40 hours a week</option><option value="daily">Over 8 hours a day</option><option value="ca">California rules</option></select></label>
+                  <label><span class="overtime-label">Overtime <button type="button" class="overtime-help" aria-label="Explain overtime" aria-haspopup="dialog">?</button></span><select class="overtime-rule"><option value="none">No overtime</option><option value="weekly40" selected>Over 40 hours a week</option><option value="daily">Over 8 hours a day</option><option value="ca">California rules</option></select></label>
                 </div>
               </div>
           <div class="report">
-            <div id="daily-report"></div><div id="report-body"></div>
+            <div id="daily-report"><table class="summary-table"><tbody><tr><th scope="row">hh:mm</th><td>0:00</td></tr><tr><th scope="row">Decimal</th><td>0.00</td></tr><tr><th scope="row">Gross pay</th><td>$0.00</td></tr></tbody></table></div><div id="report-body"></div>
             <ul id="errors" role="alert"></ul>
           </div>
-          <dialog id="date-range-dialog" aria-labelledby="date-range-title">
-            <div class="date-range-heading"><h2 id="date-range-title" tabindex="-1" autofocus>Choose dates</h2><button id="close-date-range" type="button" aria-label="Close date picker">×</button></div>
+          <dialog id="date-range-dialog" role="dialog" aria-labelledby="dlg-dates">
+            <div class="date-range-heading"><div class="dialog-title" id="dlg-dates" tabindex="-1" autofocus>Choose dates</div><button id="close-date-range" type="button" aria-label="Close date picker">×</button></div>
             <div class="range-inputs"><label>Start date<input id="range-start" type="date" required disabled></label><label>End date<input id="range-end" type="date" required disabled></label></div>
             <div class="calendar-nav"><button id="previous-month" type="button" aria-label="Previous month">‹</button><strong id="calendar-month" aria-live="polite"></strong><button id="next-month" type="button" aria-label="Next month">›</button></div>
             <p id="range-instruction">Select a start date, then an end date.</p>
@@ -83,8 +84,8 @@
             <div id="calendar-days" class="calendar-grid" role="group" aria-label="Calendar dates"></div>
             <button id="apply-dates" class="primary" type="button">Apply dates</button>
           </dialog>
-          <dialog id="overtime-dialog" aria-labelledby="overtime-help-title">
-            <h2 id="overtime-help-title">Overtime explained</h2>
+          <dialog id="overtime-dialog" role="dialog" aria-labelledby="dlg-ot">
+            <div class="dialog-title" id="dlg-ot">Overtime explained</div>
             <dl>
               <dt>Over 40 hours a week (default)</dt><dd>Hours above 40 in a workweek are paid at 1.5×. Federal standard, used in most states.</dd>
               <dt>Over 8 hours a day</dt><dd>Hours above 8 in a workday are paid at 1.5×. Used for daily overtime, including in states such as California.</dd>
@@ -156,7 +157,7 @@
                   type="number"
                   min="1"
                   max="10"
-                  value="1" /></label
+                  value="2" /></label
               ><label
                 >Default breaks<input
                   data-card="defaultBreaks"
@@ -222,13 +223,13 @@
 
 
         </div>
-        <section id="readonly-view" hidden>
-          <h2>Read-only snapshot</h2>
+        <section id="readonly-view" role="dialog" aria-labelledby="dlg-snapshot" hidden>
+          <div class="dialog-title" id="dlg-snapshot">Read-only snapshot</div>
           <p id="readonly-status" role="status"></p>
           <div id="readonly-report"></div>
           <button id="readonly-print">Print / PDF</button
           ><button id="readonly-csv">Export CSV</button>
-          <div id="approval-receipt"><h3>Approval receipt</h3>
+          <div id="approval-receipt" role="dialog" aria-labelledby="dlg-receipt"><div class="dialog-title" id="dlg-receipt">Approval receipt</div>
           <p>
             Filled in by the link holder. No identity authentication. Copy the
             generated receipt link back to the sender.
@@ -437,7 +438,7 @@
       </article></div>
     </main>
     <section id="print-report"></section>
-    <footer>Time Card Calculator · Hours &amp; estimated gross pay</footer>
+    <footer>Time Card Calculator · Hours &amp; estimated gross pay · <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a></footer>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

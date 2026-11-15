@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 const html = readFileSync("dist/index.html", "utf8");
 assert.equal((html.match(/<h1[ >]/g) || []).length, 1);
-assert.ok(html.includes("<h1>Free Time Card Calculator</h1>"));
+assert.ok(html.includes("<h1>Time Card Calculator</h1>"));
 assert.match(html, /<html lang="en">/);
 assert.match(html, /Time Card Calculator – Free Hours &amp; Pay Calculator/);
 assert.equal(
@@ -24,7 +24,7 @@ for (const faq of schema["@graph"][1].mainEntity) {
 const canonical = html.match(/rel="canonical" href="(.*?)"/)[1];
 assert.ok(canonical.startsWith("https://"));
 const sitemap = readFileSync("dist/sitemap.xml", "utf8");
-assert.equal((sitemap.match(/<loc>/g) || []).length, 4);
+assert.equal((sitemap.match(/<loc>/g) || []).length, 9);
 assert.ok(sitemap.includes(canonical));
 assert.ok(
   readFileSync("dist/robots.txt", "utf8").includes(canonical + "sitemap.xml"),
@@ -66,3 +66,61 @@ for (const path of ['with-lunch', 'biweekly', 'decimal']) {
 }
 assert.equal(descriptions.size, 4);
 console.log('Page word counts, independent descriptions, topic FAQs and navigation passed');
+
+const firstCard = html.match(/id="worker-cards">\s*(<section[\s\S]*?<\/section>)/)?.[1] ?? "";
+assert.match(firstCard, /<option value="2" selected/);
+assert.match(firstCard, /data-setting="auto"[^>]*checked="checked"/);
+assert.match(firstCard, /data-setting="deduction"[^>]*value="30"/);
+assert.match(html, /<option value="weekly40" selected/);
+assert.match(html, /data-card="defaultSegments"[^>]*value="2"/);
+assert.match(html, /id="daily-report">[\s\S]*?0:00[\s\S]*?0\.00[\s\S]*?\$0\.00/);
+
+const expectedPages = [
+  ["", "Time Card Calculator – Free Hours &amp; Pay Calculator", "Time Card Calculator", "time card calculator"],
+  ["with-lunch/", "Time Card Calculator With Lunch – Paid & Unpaid Breaks", "Time Card Calculator With Lunch", "with lunch"],
+  ["biweekly/", "Biweekly Time Card Calculator – Two-Week Payroll", "Biweekly Time Card Calculator", "biweekly"],
+  ["decimal/", "Decimal Hours Calculator – Minutes to Decimal Conversion", "Decimal Hours Calculator for Time Cards", "decimal"],
+];
+const titles = new Set();
+for (const [path, expectedTitle, expectedHeading, keyword] of expectedPages) {
+  const page = readFileSync(`dist/${path}index.html`, "utf8");
+  const title = page.match(/<title>(.*?)<\/title>/s)[1];
+  const heading = page.match(/<h1[^>]*>(.*?)<\/h1>/s)[1];
+  const description = page.match(/name="description"\s+content="([^"]+)"/)[1];
+  assert.equal(title, expectedTitle, path);
+  assert.equal(heading, expectedHeading, path);
+  assert.equal((page.match(/<h1[ >]/g) || []).length, 1, path);
+  assert.notEqual(title, heading, path);
+  assert.ok(description.toLowerCase().includes(keyword), path);
+  titles.add(title);
+}
+assert.equal(titles.size, 4);
+assert.match(html, /<h1>Time Card Calculator<\/h1>\s*<p class="lede">Free, no signup — calculates hours, lunch breaks, weekly and biweekly overtime, decimal hours and gross pay\.<\/p>/);
+console.log("Four-page titles, headings, target keywords and homepage subtitle passed");
+
+for (const path of ['', 'with-lunch/', 'biweekly/', 'decimal/', 'with-breaks/', 'free/', 'overtime-calculator/', 'privacy/', 'terms/']) {
+ const page = readFileSync(`dist/${path}index.html`, 'utf8');
+ assert.match(page, /og:image/);
+ assert.match(page, /twitter:card/);
+ assert.match(page, /favicon.svg/);
+ assert.equal(page.match(/property="og:url" content="([^"]+)"/)[1], page.match(/rel="canonical" href="([^"]+)"/)[1]);
+}
+
+const shingles = text => {
+ const tokens = text.replace(/<[^>]*>/g, ' ').toLowerCase().match(/[a-z]+/g);
+ return new Set(tokens.slice(0,-4).map((_,i)=>tokens.slice(i,i+5).join(' ')));
+};
+const homeShingles = shingles(article(html));
+for (const path of ['biweekly', 'decimal']) {
+ const page = readFileSync(`dist/${path}/index.html`, 'utf8');
+ const set = shingles(article(page));
+ const similarity = [...set].filter(s=>homeShingles.has(s)).length / set.size;
+ assert.ok(similarity < 0.4);
+ console.log(`${path} five-word phrase overlap: ${(similarity*100).toFixed(1)}%`);
+ assert.match(page, /BreadcrumbList/);
+}
+const decimalPage = readFileSync('dist/decimal/index.html','utf8');
+assert.equal((article(decimalPage).match(/<tbody>([\s\S]*?)<\/tbody>/)[1].match(/<tr>/g)||[]).length,60);
+assert.match(html, /id="biweekly"[^>]*[^]*?Report period/);
+assert.match(html, /id="lunch"/);
+assert.equal((sitemap.match(/<lastmod>2026-11-15<\/lastmod>/g)||[]).length,9);

@@ -3,7 +3,7 @@ export type Preset =
   "hourly" | "lunch" | "biweekly" | "decimal" | "freelancer";
 export function applyPreset(card: Card, preset: Preset) {
   const defaults = createCard(card.anchor);
-  card.length = preset === "biweekly" ? "2" : defaults.length;
+  card.length = "2";
   card.defaultSegments = defaults.defaultSegments;
   card.defaultBreaks = defaults.defaultBreaks;
   card.decimalFirst = preset === "decimal";
@@ -12,7 +12,7 @@ export function applyPreset(card: Card, preset: Preset) {
   card.settings = {
     ...defaults.settings,
     rate: card.settings.rate,
-    auto: preset === "lunch",
+    auto: true,
     overtime: preset !== "freelancer",
     round: preset === "freelancer" ? "none" : "two",
   };

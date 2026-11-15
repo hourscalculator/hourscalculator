@@ -83,7 +83,7 @@ export async function start() {
   function workerView(employeeId: string) {
     let view = workerViews.get(employeeId);
     if (!view) {
-      view = workerTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement;
+      view = (workerViews.size === 0 ? workerCardsRoot.querySelector<HTMLElement>(".worker-card") : null) ?? workerTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement;
       view.dataset.workerId = employeeId;
       workerViews.set(employeeId, view);
     }
@@ -462,7 +462,7 @@ export async function start() {
     }
   }
   function syncControls() {
-    root.querySelector<HTMLSelectElement>(".overtime-rule")!.value = card.settings.overtime === false ? "none" : card.settings.mode;
+    root.querySelector<HTMLSelectElement>(".overtime-rule")!.value = card.settings.overtime === false ? "none" : card.settings.mode === "weekly" ? "weekly40" : card.settings.mode;
     for (const el of [
       ...workerRoot.querySelectorAll<
       HTMLInputElement | HTMLSelectElement
@@ -729,7 +729,7 @@ export async function start() {
     }
     if (el.matches(".overtime-rule")) {
       card.settings.overtime = el.value !== "none";
-      if (el.value !== "none") card.settings.mode = el.value as "weekly" | "daily" | "ca";
+      if (el.value !== "none") card.settings.mode = el.value === "weekly40" ? "weekly" : el.value as "daily" | "ca";
       card.settings.multiplier = 1.5;
       renderDays();
     } else if (el.dataset.meridiem) {
