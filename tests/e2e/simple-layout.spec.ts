@@ -1,0 +1,28 @@
+import { test, expect } from '@playwright/test';
+test('Simple desktop and mobile dialog layout and keyboard', async ({ page, browserName }) => {
+  await page.goto('/');
+  const dialog = page.locator('#simple-wizard');
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('h1')).toHaveCount(1);
+  const choice = dialog.locator(".simple-work-days label").first();
+  const checkbox = await choice.locator("input").boundingBox();
+  const label = await choice.boundingBox();
+  expect(label!.height).toBeGreaterThanOrEqual(100);
+  const last = await dialog.locator(".simple-work-days label").last().boundingBox();
+  expect(last!.y).toBe(label!.y);
+  const desktop = await dialog.boundingBox();
+  expect(desktop!.width).toBeLessThan(760);
+  await page.screenshot({path:`test-results/simple-desktop-${browserName}.png`,fullPage:false});
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});
+  const mobile = await dialog.boundingBox();
+  expect(mobile!.width).toBe(390);
+  expect(mobile!.height).toBeCloseTo(844, 0);
+  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.getByText('Do your hours vary by day? Click here to expand and customize',{exact:true}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await expect(dialog.locator('footer')).toBeInViewport();
+  await page.screenshot({path:`test-results/simple-mobile-${browserName}.png`,fullPage:false});
+});

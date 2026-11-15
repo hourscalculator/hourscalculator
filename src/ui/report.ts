@@ -1,4 +1,5 @@
 import { type Card, getReport, getTableReport, displayTime, commitField } from "../state/card";
+import { reportForMode } from "../state/simple";
 import { decimal, hhmm, dateString } from "../domain/core";
 export const escape = (value: unknown) =>
   String(value).replace(
@@ -12,24 +13,19 @@ export const money = (value: number | null, currency: string) =>
   value === null
     ? "Enter billing rate"
     : `${currency} ${new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value / 100)}`;
-export function summaryReport(card: Card, combined = false) {
-  const r = getReport(card);
+export function summaryReport(card: Card, combined = false, simple = false, historical = false) {
+  const r = reportForMode(card, simple);
   if (combined) {
-    const all = getTableReport(card);
-    const groups = all.employees.map(({ card: employee, report }, index) => {
-      const hasContent = Object.values(employee.content ?? {}).some(value => value.trim());
-      const rows = Array.from({ length: report.range.end - report.range.start }, (_, offset) => {
-        const date = dateString(report.range.start + offset);
-        const minutes = report.rows.find(row => row.date === date)?.minutes ?? 0;
-        const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(date + "T00:00:00Z"));
-        return `<tr><th scope="row">${weekday}<time class="report-date" datetime="${date}">${date}</time></th><td>${hhmm(minutes)}</td><td>${decimal(minutes, employee.settings.round)}</td>${hasContent ? `<td class="report-content">${escape(employee.content?.[date] ?? "")}</td>` : ""}</tr>`;
-      }).join("");
-      return `<section class="report-card"><table class="summary-table"><caption><span class="report-card-heading"><span>${escape(employee.name || `Time card ${index + 1}`)}${employee.client ? `<small class="report-date">Client · ${escape(employee.client)}</small>` : ""}${employee.project ? `<small class="report-date">Project · ${escape(employee.project)}</small>` : ""}</span><span class="report-period">${dateString(report.range.start)} – ${dateString(report.range.end - 1)}</span></span></caption><thead><tr><th scope="col">Day</th><th scope="col">hh:mm</th><th scope="col">Decimal</th>${hasContent ? '<th scope="col">Content</th>' : ""}</tr></thead><tbody>${rows}</tbody></table></section>`;
-    }).join("");
-    const totals = { ...r, pay: all.pay };
+    const all = simple
+      ? { employees: [{ card, report: r }], total: r.total, pay: r.pay }
+      : getTableReport(card);
+    const groups = all.employees.length < 2 ? '' : all.employees.map(({card: employee, report}, index) =>
+      `<section class="report-card"><h3>${escape(employee.name || `Time card ${index + 1}`)}</h3><table class="summary-table"><tbody><tr><th>Total time</th><td>${hhmm(report.total)}</td><td>${decimal(report.total, employee.settings.round)}</td></tr></tbody>${paySummary(employee, report)}</table></section>`
+    ).join('');
+    const totals = { ...r, pay: all.pay, rate: all.employees.some(employee => employee.report.rate !== r.rate) ? null : r.rate };
     for (const key of ["total", "regular", "overtime", "double"] as const)
       totals[key] = all.employees.reduce((sum, employee) => sum + employee.report[key], 0);
-    return `<h2 class="report-title">Report</h2>${groups}<section class="report-grand-total" aria-label="Total time"><table class="summary-table"><tbody><tr class="report-total"><th scope="row">Total time</th><td>${hhmm(all.total)}</td><td>${decimal(all.total, card.settings.round)}</td></tr></tbody></table></section><h2 class="report-title">${card.length === "1" ? "Weekly totals" : "Period totals"}</h2><section class="report-card"><table class="summary-table">${paySummary(card, totals)}</table></section>`;
+    return `<h2 class="report-title">All time cards</h2>${groups}<section class="report-grand-total" aria-label="Total time"><table class="summary-table"><tbody><tr class="report-total"><th scope="row">Total time</th><td>${hhmm(all.total)}</td><td>${decimal(all.total, card.settings.round)}</td></tr></tbody></table></section><h2 class="report-title">${card.length === "1" ? "Weekly totals" : "Period totals"}</h2><section class="report-card"><table class="summary-table">${paySummary(card, totals, false, false, all.pay === null ? null : all.employees.reduce((sum, employee) => sum + regularWages(employee.report)!, 0))}</table></section>`;
   }
   const weekday = (day: number) => new Intl.DateTimeFormat("en-US", {
     weekday: "short", timeZone: "UTC",
@@ -43,16 +39,22 @@ export function summaryReport(card: Card, combined = false) {
   return `<table class="summary-table"><caption>Report</caption><colgroup><col class="formula-label"><col><col class="formula-symbol"><col><col class="formula-symbol"><col>${hasContent ? '<col class="content-column">' : ""}</colgroup>
     <thead><tr><th colspan="2" scope="col">Day</th><th colspan="2" scope="col">hh:mm</th><th colspan="2" scope="col">Decimal</th>${hasContent ? '<th scope="col">Content</th>' : ""}</tr></thead>
     <tbody>${rows}<tr class="report-total"><th colspan="2" scope="row">Total</th><td colspan="2">${hhmm(r.total)}</td><td colspan="2">${decimal(r.total, card.settings.round)}</td>${hasContent ? "<td></td>" : ""}</tr></tbody>
-    ${paySummary(card, r, hasContent)}</table>`;
+    ${paySummary(card, r, hasContent, historical)}</table>`;
 }
 
-function paySummary(card: Card, r: ReturnType<typeof getReport>, hasContent = false) {
+function regularWages(r: Pick<ReturnType<typeof getReport>, "pay" | "billing" | "rate" | "regular">) {
+  return r.pay === null ? null : r.billing === 'hourly' ? Math.round(r.regular * (r.rate ?? 0) / 60) : r.pay;
+}
+
+function paySummary(card: Card, r: Pick<ReturnType<typeof getReport>, "pay" | "billing" | "rate" | "regular" | "overtime" | "double" | "total">, hasContent = false, historical = false, combinedRegularPay?: number | null) {
   const totalSpan = hasContent ? ' colspan="2"' : "";
-  const regularPay = r.pay === null ? null : r.billing === "hourly"
-    ? Math.round(r.regular * (r.rate ?? 0) / 60) : r.pay;
+  const regularPay = combinedRegularPay === undefined ? regularWages(r) : combinedRegularPay;
   const premiumPay = r.pay === null ? null : r.pay - (regularPay ?? 0);
   const amount = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: card.currency }).format(value / 100);
-  return `    <tbody class="pay-summary">
+  const rule = card.settings.overtime === false ? 'No overtime' : card.settings.mode === 'ca' ? 'California rules · daily 8h / 12h, weekly 40h · 1.5× / 2×' : `${card.settings.mode === 'daily' ? 'Daily' : 'Weekly'} overtime after ${card.settings.mode === 'daily' ? 8 : 40} hours · ${card.settings.multiplier}×`;
+  return `    <tbody class="pay-summary">${historical ? `
+      <tr><th colspan="${hasContent ? 7 : 6}">${card.length === "1" ? "Weekly totals" : "Period totals"}</th></tr>` : ""}
+      <tr class="overtime-description"><th scope="row">Overtime rule</th><td colspan="${hasContent ? 6 : 5}">${escape(rule)}</td></tr>
       <tr><th></th><th scope="col">REG</th><th class="operator">+</th><th scope="col">OT</th><th class="operator">=</th><th scope="col"${totalSpan}>Total</th></tr>
       <tr><th scope="row">hh:mm</th><td>${hhmm(r.regular)}</td><td class="operator">+</td><td>${hhmm(r.overtime + r.double)}</td><td class="operator">=</td><td${totalSpan}>${hhmm(r.total)}</td></tr>
       <tr><th scope="row">Decimal</th><td>${decimal(r.regular, card.settings.round)}</td><td class="operator">+</td><td>${decimal(r.overtime + r.double, card.settings.round)}</td><td class="operator">=</td><td${totalSpan}>${decimal(r.total, card.settings.round)}</td></tr>
@@ -61,7 +63,17 @@ function paySummary(card: Card, r: ReturnType<typeof getReport>, hasContent = fa
     </tbody>`;
 }
 
-export function tableReport(card: Card, _resultOnly = false) {
+export function tableReport(card: Card, resultOnly = false, simple = false) {
+  if (resultOnly) {
+    const all = getTableReport(card);
+    const sections = all.employees.map(({ card: employee, report }, index) => {
+      const name = employee.name || (all.employees.length > 1 ? `Worker ${index + 1}` : "");
+      const details = [employee.client, employee.project, `Period ${dateString(report.range.start)} – ${dateString(report.range.end - 1)}`].filter(Boolean).join(" · ");
+      const errors = reportForMode(employee, simple).errors;
+      return `<section class="employee-report"><header class="report-identity">${name ? `<h2>${escape(name)}</h2>` : ""}<p>${escape(details)}</p></header>${summaryReport(employee, false, simple, true)}<ul>${errors.map(error => `<li>${escape(error)}</li>`).join("")}</ul></section>`;
+    }).join("");
+    return `<h2 class="print-title">Time Card Calculator</h2>${sections}${all.employees.length > 1 ? `<p>Table total ${hhmm(all.total)} · ${money(all.pay, card.currency)}</p>` : ""}`;
+  }
   const cards = getTableReport(card).employees.map(({ card: employee, report }, index) => {
     const time = (field: typeof employee.entries[number]["start"]) => field.value === null
       ? escape(field.raw || "—")
@@ -75,5 +87,5 @@ export function tableReport(card: Card, _resultOnly = false) {
       }).join("");
     return `<section class="report-card readonly-time-card"><table class="summary-table"><caption><span class="report-card-heading"><span>${escape(employee.name || `Time card ${index + 1}`)}${employee.client ? `<small class="report-date">Client · ${escape(employee.client)}</small>` : ""}${employee.project ? `<small class="report-date">Project · ${escape(employee.project)}</small>` : ""}</span><span class="report-period">${dateString(report.range.start)} – ${dateString(report.range.end - 1)}</span></span></caption><thead><tr><th scope="col">Day</th><th scope="col">In</th><th scope="col">Out</th><th scope="col">Break</th></tr></thead><tbody>${rows}</tbody></table></section>`;
   }).join("");
-  return `<h1>Time Card Calculator</h1><h2 class="report-title">Time cards</h2>${cards}${summaryReport(card, true)}`;
+  return `<h2 class="print-title">Time Card Calculator</h2><h2 class="report-title">Time cards</h2>${cards}${summaryReport(card, true, simple)}`;
 }

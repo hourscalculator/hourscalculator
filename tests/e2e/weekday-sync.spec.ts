@@ -1,6 +1,7 @@
+import { openDetailed } from "./helpers";
 import { test, expect } from '@playwright/test';
 test('weekday copies include PM and stay linked until manually changed', async ({page}) => {
-  await page.goto('/');
+  await openDetailed(page);
   const monday = page.locator('.day').first();
   const tuesday = page.locator('.day').nth(1);
   const wednesday = page.locator('.day').nth(2);

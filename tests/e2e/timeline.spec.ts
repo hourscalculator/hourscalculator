@@ -1,10 +1,11 @@
+import { openDetailed } from "./helpers";
 import { expect, test } from "@playwright/test";
 test("timeline keyboard and real drag share state, cancellation rolls back preview", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await openDetailed(page);
   const inputs = page.locator(".day").last().locator(".work-fields input");
   await inputs.nth(0).fill("9");
   await inputs.nth(1).fill("5p");
@@ -34,11 +35,11 @@ test("timeline keyboard and real drag share state, cancellation rolls back previ
   expect(errors).toEqual([]);
 });
 test("tap empty timeline leaves work periods unchanged", async ({ page }) => {
-  await page.goto("/");
+  await openDetailed(page);
   const track = page.locator(".timeline").first();
   await track.click({ position: { x: 100, y: 32 } });
   await expect(page.locator('[data-handle="start"]')).toHaveCount(0);
-  await expect(page.locator("#total")).toHaveText("0:00");
+  await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("0:00");
 });
 test("mobile touch scroll preserves input and handles have 44px targets", async ({
   page,
@@ -46,11 +47,11 @@ test("mobile touch scroll preserves input and handles have 44px targets", async 
 }) => {
   test.skip(browserName !== "chromium", "Chromium touch dispatch");
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await openDetailed(page);
   await page.locator(".day").last().locator(".work-fields input").nth(0).fill("855");
   await page.locator(".day").last().locator(".work-fields input").nth(1).fill("5p");
   await page.locator(".day").last().locator(".work-fields input").nth(1).blur();
-  const before = await page.locator("#total").textContent();
+  const before = await page.locator("#daily-report .report-grand-total .report-total td:first-of-type").textContent();
   const box = await page.locator("[data-handle]").first().boundingBox();
   expect(box!.width).toBeGreaterThanOrEqual(44);
   expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -71,6 +72,6 @@ test("mobile touch scroll preserves input and handles have 44px targets", async 
     touchPoints: [],
   });
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
-  await expect(page.locator("#total")).toHaveText(before!);
+  await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText(before!);
   await page.screenshot({ path: "test-results/mobile-viewport.png" });
 });

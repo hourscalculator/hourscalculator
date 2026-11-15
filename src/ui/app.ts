@@ -1,3 +1,7 @@
+import { simpleReport } from "../state/simple";
+import { selectInputContents } from "./input-selection";
+import { setFieldError } from "./validation";
+import { mountSimple } from "./simple";
 import { tableReport, summaryReport, escape } from "./report";
 import {
   cardPeriod,
@@ -7,7 +11,17 @@ import {
   employeeCards,
   removeEmployee,
 } from "../state/card";
-import { makeReceipt } from "../io/workflows";
+import {
+  makeTemplate,
+  applyTemplate,
+  loadTemplates,
+  saveTemplates,
+  makeReceipt,
+  decodeReceipt,
+  receiptStatus,
+  type Template,
+} from "../io/workflows";
+
 import { applyPreset, routePreset, type Preset } from "../state/presets";
 import { hhmm, dateString } from "../domain/core";
 import { dayNumber } from "../domain/report";
@@ -31,6 +45,7 @@ import {
   encodeShare,
   decodeShare,
   encodeReceiptLink,
+  decodeReceiptLink,
 } from "../io/delivery";
 const id = () => crypto.randomUUID();
 const today = () => {
@@ -88,9 +103,9 @@ export async function start() {
     document.querySelector("#save-status")!.textContent = String(error);
     document.querySelector("#readonly-status")!.textContent = String(error);
   }
-  function downloadCsv(value: Card) {
+  function downloadCsv(value: Card, simple = false) {
     const url = URL.createObjectURL(
-      new Blob([csv(value)], { type: "text/csv;charset=utf-8" }),
+      new Blob([csv(value, simple)], { type: "text/csv;charset=utf-8" }),
     );
     const a = document.createElement("a");
     a.href = url;
@@ -106,12 +121,51 @@ export async function start() {
       });
     }
   }
+  async function shareLink(mode: "readonly") {
+    const hash = await encodeShare(card, mode);
+    const box = document.querySelector<HTMLInputElement>("#share-url")!;
+    box.hidden = false;
+    box.value = location.origin + location.pathname + "#" + hash;
+    box.select();
+  }
+  function refreshTemplates() {
+    try {
+      document.querySelector("#templates")!.innerHTML = loadTemplates(storage)
+        .map(
+          (t) => `<option value="${escape(t.id)}">${escape(t.name)}</option>`,
+        )
+        .join("");
+    } catch (error) {
+      showError(error);
+    }
+  }
+  function selectedTemplate(): Template | undefined {
+    return loadTemplates(storage).find(
+      (t) =>
+        t.id === document.querySelector<HTMLSelectElement>("#templates")!.value,
+    );
+  }
+  let receiptRender = 0;
+  async function renderReceipts() {
+    const revision = ++receiptRender;
+    const rows = await Promise.all(
+      card.receipts.map(
+        async (r) =>
+          `<p>${escape(r.decision)} · ${escape(r.name)} · ${escape(r.time)} · ${escape(r.note)} · ${await receiptStatus(card, r)}</p>`,
+      ),
+    );
+    if (revision === receiptRender)
+      document.querySelector("#receipts")!.innerHTML = rows.join("");
+  }
   function updateCopiedState() {
     const copied = copiedSnapshot !== "" && copiedSnapshot === JSON.stringify(card);
     const button = document.querySelector<HTMLButtonElement>("#share")!;
-    button.classList.toggle("copied", copied);
-    if (copied) button.setAttribute("aria-label", "Copy share link, copied");
-    else button.removeAttribute("aria-label");
+    const buttons=[button,...document.querySelectorAll<HTMLButtonElement>('[data-simple-action="share"]')];
+    for(const control of buttons) {
+      control.classList.toggle("copied",copied);
+      if(copied) control.setAttribute("aria-label","Copy share link, copied");
+      else control.removeAttribute("aria-label");
+    }
   }
   function persist() {
     updateCopiedState();
@@ -208,7 +262,7 @@ export async function start() {
       const workEndpoints = (hasWork ? (["start", "end"] as const) : [])
         .map(
           (key) =>
-            `<button type="button" class="handle" style="left:calc(${(entry[key].value! / 1440) * 100}% - 22px)" data-handle="${key}" data-entry="${entry.id}" aria-label="Adjust ${key} ${escape(entry.row)} with arrow keys" title="Use arrow keys to adjust ${key}"></button>`,
+            `<button type="button" class="handle" style="pointer-events:auto;left:calc(${(entry[key].value! / 1440) * 100}% - 22px)" data-handle="${key}" data-entry="${entry.id}" aria-label="Adjust ${key} ${escape(entry.row)} with arrow keys" title="Use arrow keys to adjust ${key}"></button>`,
         )
         .join("");
       const breaks = entry.breaks
@@ -220,7 +274,7 @@ export async function start() {
           return `<span class="break-bar ${rest.paid ? "paid" : ""}" style="left:${(start / 1440) * 100}%;width:${width}%"></span>${(["start", "end"] as const)
             .map(
               (key) =>
-                `<button type="button" class="handle break-handle" style="left:calc(${(rest[key].value! / 1440) * 100}% - 22px)" data-handle="b${index}-${key}" data-entry="${entry.id}" aria-label="Adjust break ${key} ${escape(entry.row)} with arrow keys" title="Use arrow keys to adjust this break"></button>`,
+                `<button type="button" class="handle break-handle" style="pointer-events:auto;left:calc(${(rest[key].value! / 1440) * 100}% - 22px)" data-handle="b${index}-${key}" data-entry="${entry.id}" aria-label="Adjust break ${key} ${escape(entry.row)} with arrow keys" title="Use arrow keys to adjust this break"></button>`,
             )
             .join("")}`;
         })
@@ -290,17 +344,19 @@ export async function start() {
     initialize(card, id);
     for (const date of range.dates) {
       const entries = card.entries.filter((entry) => entry.row === date);
+      if (entries.some(entry => entry.breaks.some(rest => !rest.automatic && (rest.start.raw || rest.end.raw)))) {
+        for (const entry of entries) entry.breaks = entry.breaks.filter(rest => !rest.automatic);
+      }
       for (const entry of entries) {
         const legacy = entry.dailyBreakMinutes;
-        if (legacy === undefined && !(card.settings.auto && entry === entries[0])) continue;
+        if (legacy !== undefined || entries.some(e => e.breaks.some(b => !b.automatic && (b.start.raw || b.end.raw))) || !(card.settings.auto && entry === entries[0])) continue;
         let rest = entry.breaks.find((b) => b.automatic);
         if (!rest) {
           rest = { id: id(), start: field(), end: field(), paid: false, automatic: true };
           entry.breaks.push(rest);
         }
         setMinute(card, entry, rest.start, 720);
-        setMinute(card, entry, rest.end, (720 + (legacy ?? card.settings.deduction)) % 1440);
-        delete entry.dailyBreakMinutes;
+        setMinute(card, entry, rest.end, (720 + card.settings.deduction) % 1440);
       }
       const syncKey = `${card.selectedEmployee}:${date}`;
       if (card.settings.auto && card.syncedRows?.[syncKey]) card.syncedRows[syncKey] = rowSnapshot(entries);
@@ -340,27 +396,6 @@ export async function start() {
       }
     }
     updateResults();
-  }
-  function setFieldError(control: HTMLInputElement | HTMLSelectElement, message: string) {
-    const errorId = control.dataset.errorId ?? `field-error-${id()}`;
-    const existing = document.getElementById(errorId);
-    if (!message) {
-      existing?.remove();
-      control.removeAttribute("aria-invalid");
-      control.removeAttribute("aria-describedby");
-      return;
-    }
-    control.dataset.errorId = errorId;
-    control.setAttribute("aria-invalid", "true");
-    control.setAttribute("aria-describedby", errorId);
-    const text = existing ?? document.createElement("span");
-    text.id = errorId;
-    text.className = "field-message";
-    text.textContent = message;
-    if (!existing) {
-      const timeHeading = control.closest(".time-field")?.querySelector(".time-field-heading");
-      (timeHeading ?? control.closest("label") ?? control.parentElement)!.append(text);
-    }
   }
   function renderValidation(report: ReturnType<typeof getReport>) {
     const controls = [
@@ -402,8 +437,26 @@ export async function start() {
     renderValidation(r);
     const markup = summaryReport(card, true);
     root.querySelector("#daily-report")!.innerHTML = markup;
-    document.querySelector("#print-report")!.innerHTML = tableReport(card, true);
+    const reportBody = tableReport(card, true);
+    root.querySelector("#report-body")!.innerHTML = reportBody;
+    document.querySelector("#print-report")!.innerHTML = reportBody;
+    syncVisibleFields();
+    void renderReceipts();
     root.querySelector<HTMLSelectElement>(".overtime-rule")!.disabled = card.billing !== "hourly";
+  }
+  function syncVisibleFields() {
+    const fields = card.visibleFields ?? {
+      client: employeeCards(card).some(employee => Boolean(employee.client)),
+      project: employeeCards(card).some(employee => Boolean(employee.project)),
+      content: employeeCards(card).some(employee => Object.keys(employee.content ?? {}).length > 0),
+    };
+    for (const key of ['client', 'project', 'content'] as const) {
+      root.querySelector<HTMLInputElement>(`[data-visible-field="${key}"]`)!.checked = fields[key];
+      const selector = key === 'content' ? '[data-add-content], .content-field' : `[data-card="${key}"]`;
+      root.querySelectorAll<HTMLElement>(selector).forEach(element => {
+        (key === 'content' ? element : element.closest('label')!).hidden = !fields[key];
+      });
+    }
   }
   function syncControls() {
     root.querySelector<HTMLSelectElement>(".overtime-rule")!.value = card.settings.overtime === false ? "none" : card.settings.mode;
@@ -495,26 +548,68 @@ export async function start() {
     return { entry, f };
   }
   function selectExistingInput(event: Event) {
+    const previousWorker = card.selectedEmployee;
     activateWorkerFromTarget(event.target);
     if (event.type === "focusin") {
-      syncControls();
+      if (previousWorker !== card.selectedEmployee) syncControls();
       renderValidation(getReport(card));
     }
-    const input = event.target;
-    if (input instanceof HTMLInputElement && !input.readOnly && ["text", "number"].includes(input.type)) {
-      input.focus();
-      input.select();
-    }
+    selectInputContents(event);
   }
   root.addEventListener("focusin", selectExistingInput);
   root.addEventListener("click", selectExistingInput);
+  root.addEventListener("pointerdown", selectInputContents);
   root.addEventListener("pointerdown", (event) => {
-    const input = event.target;
-    if (input instanceof HTMLInputElement && !input.readOnly && input.value && ["text", "number"].includes(input.type)) {
-      event.preventDefault();
-      input.focus();
-      input.select();
-    }
+    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-handle]");
+    if (!target || event.button !== 0) return;
+    activateWorkerFromTarget(target);
+    const track = target.closest<HTMLElement>(".timeline")!;
+    const { entry, f } = locate(target);
+    const initial = f.value!;
+    const bounds = track.getBoundingClientRect();
+    let minute = initial;
+    let moved = false;
+    const preview = document.createElement("span");
+    preview.className = "endpoint-time";
+    preview.hidden = true;
+    target.append(preview);
+    target.setPointerCapture(event.pointerId);
+    const move = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
+      if (!moved && Math.abs(next.clientX - event.clientX) < 5) return;
+      moved = true;
+      minute = Math.max(0, Math.min(1435, Math.round((initial + (next.clientX - event.clientX) / bounds.width * 1440) / 5) * 5));
+      preview.hidden = false;
+      preview.textContent = displayTime(minute, card);
+      target.style.left = `calc(${minute / 1440 * 100}% - 22px)`;
+    };
+    const finish = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", finish);
+      target.removeEventListener("pointercancel", finish);
+      target.removeEventListener("lostpointercapture", finish);
+      if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+      preview.remove();
+      if (next.type !== "pointerup" || !moved) {
+        target.style.left = `calc(${initial / 1440 * 100}% - 22px)`;
+        return;
+      }
+      stopRowSync(entry.row);
+      if (target.dataset.handle!.startsWith("b")) {
+        card.settings.auto = false;
+        syncControls();
+      }
+      setMinute(card, entry, f, minute);
+      fillFollowingDays(entry);
+      renderDays();
+      updateResults();
+      persist();
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", finish);
+    target.addEventListener("pointercancel", finish);
+    target.addEventListener("lostpointercapture", finish);
   });
   root.addEventListener("input", (event) => {
     const target = event.target as HTMLInputElement;
@@ -592,6 +687,15 @@ export async function start() {
   });
   root.addEventListener("change", (event) => {
     const el = event.target as HTMLInputElement;
+    if (el.dataset.visibleField) {
+      const key = el.dataset.visibleField as 'client' | 'project' | 'content';
+      card.visibleFields ??= Object.fromEntries(['client', 'project', 'content'].map(field => [field, root.querySelector<HTMLInputElement>(`[data-visible-field="${field}"]`)!.checked])) as NonNullable<Card['visibleFields']>;
+      card.visibleFields[key] = el.checked;
+      syncVisibleFields();
+      persist();
+      return;
+    }
+    if (el.matches("#template-name, #templates, #receipt-input, [data-field], [data-content]")) return;
     activateWorkerFromTarget(el);
     if (el === rangeStart || el === rangeEnd) return;
     if (!el.checkValidity()) {
@@ -693,7 +797,55 @@ export async function start() {
     renderAllWorkerDays();
     persist();
   });
+  async function runDelivery(action: 'print' | 'csv' | 'share', simple = false) {
+    if (simple ? simpleReport(card).errors.length > 0 : !valid()) return;
+    if (action === 'print') {
+      document.querySelector('#print-report')!.innerHTML = tableReport(card, true, simple);
+      window.print();
+      return;
+    }
+    if (action === 'csv') { downloadCsv(card, simple); return; }
+            const snapshot = structuredClone(card);
+            const link = encodeShare(snapshot, "report").then((hash) => {
+              const url = new URL(location.href);
+              url.searchParams.delete('reportMode');
+              if (simple) url.searchParams.set('reportMode','simple');
+              url.hash = hash;
+              return url.href;
+            });
+            try {
+              if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+                await navigator.clipboard.write([new ClipboardItem({
+                  "text/plain": link.then((url) => new Blob([url], { type: "text/plain" })),
+                })]);
+              } else {
+                await navigator.clipboard.writeText(await link);
+              }
+              copiedSnapshot = JSON.stringify(snapshot);
+              updateCopiedState();
+              document.querySelector("#save-status")!.textContent = "Share link copied";
+              document.querySelector<HTMLInputElement>("#share-url")!.hidden = true;
+            } catch (error) {
+              try {
+                const box = document.querySelector<HTMLInputElement>("#share-url")!;
+                box.value = await link;
+                box.hidden = false;
+                box.select();
+                document.querySelector("#save-status")!.textContent = "Copy unavailable. Copy the link below.";
+              } catch (shareError) {
+                showError(shareError);
+              }
+            }
+  }
   function valid() {
+    const invalidControl = Array.from(root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'))
+      .find(control => !control.disabled && !control.closest('dialog:not([open])') && !control.checkValidity());
+    if (invalidControl) {
+      setFieldError(invalidControl, invalidControl.validationMessage);
+      invalidControl.scrollIntoView({ block: "center" });
+      invalidControl.focus();
+      return false;
+    }
     renderAllWorkerDays();
     const report = getTableReport(card);
     const invalid = Array.from(root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[aria-invalid="true"], select[aria-invalid="true"]')).find((control) => !control.disabled && !control.closest('dialog:not([open])'));
@@ -726,6 +878,8 @@ export async function start() {
       addEmployee(card, id());
       card.settings = { ...source.settings };
       card.name = source.name;
+      card.client = source.client;
+      card.project = source.project;
       card.content = { ...source.content };
       card.entries = source.entries.map(entry => ({
         ...entry,
@@ -867,6 +1021,61 @@ export async function start() {
         case "close-overtime-help":
           document.querySelector<HTMLDialogElement>("#overtime-dialog")!.close();
           break;
+        case "save-template":
+          try {
+            const name = document
+              .querySelector<HTMLInputElement>("#template-name")!
+              .value.trim();
+            if (!name || name.length > 100)
+              throw Error("Enter a template name up to 100 characters");
+            const templates = loadTemplates(storage);
+            if (templates.length >= 100) throw Error("Template limit reached");
+            templates.push(makeTemplate(card, name, id()));
+            saveTemplates(storage, templates);
+            refreshTemplates();
+          } catch (error) {
+            showError(error);
+          }
+          break;
+        case "apply-template":
+          try {
+            const template = selectedTemplate();
+            if (
+              template &&
+              confirm(
+                `Apply these settings? ${JSON.stringify(template.values)} ${JSON.stringify(template.settings)}`,
+              )
+            ) {
+              applyTemplate(card, template);
+              renderAllWorkerDays();
+              persist();
+            }
+          } catch (error) {
+            showError(error);
+          }
+          break;
+        case "delete-template":
+          try {
+            const template = selectedTemplate();
+            if (template && confirm("Delete this template?")) {
+              saveTemplates(
+                storage,
+                loadTemplates(storage).filter((t) => t.id !== template.id),
+              );
+              refreshTemplates();
+            }
+          } catch (error) {
+            showError(error);
+          }
+          break;
+        case "readonly-share":
+          if (valid())
+            try {
+              await shareLink("readonly");
+            } catch (error) {
+              showError(error);
+            }
+          break;
         case "make-receipt":
           try {
             if (!readonlyCard) throw Error("Open a read-only snapshot first");
@@ -889,14 +1098,30 @@ export async function start() {
             showError(error);
           }
           break;
+        case "import-receipt":
+          try {
+            const raw =
+              document.querySelector<HTMLInputElement>("#receipt-input")!.value;
+            const receipt = raw.includes("#receipt=")
+              ? await decodeReceiptLink("#receipt=" + raw.split("#receipt=")[1])
+              : decodeReceipt(raw);
+            if (card.receipts.length >= 100)
+              throw Error("Receipt limit reached");
+            card.receipts.push(receipt);
+            persist();
+            await renderReceipts();
+          } catch (error) {
+            showError(error);
+          }
+          break;
         case "readonly-print":
-          if (readonlyCard && !getTableReport(readonlyCard).errors.length)
+          if (readonlyCard && !(simpleSharedReport() ? simpleReport(readonlyCard) : getTableReport(readonlyCard)).errors.length)
             window.print();
           break;
         case "readonly-csv":
           if (readonlyCard)
             try {
-              downloadCsv(readonlyCard);
+              downloadCsv(readonlyCard, simpleSharedReport());
             } catch (error) {
               showError(error);
             }
@@ -958,39 +1183,9 @@ export async function start() {
           }
           break;
         case "print":
-          if (valid()) window.print();
-          break;
         case "csv":
-          if (valid()) downloadCsv(card);
-          break;
         case "share":
-          if (valid()) {
-            const snapshot = structuredClone(card);
-            const link = encodeShare(snapshot, "report").then((hash) => location.origin + location.pathname + "#" + hash);
-            try {
-              if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-                await navigator.clipboard.write([new ClipboardItem({
-                  "text/plain": link.then((url) => new Blob([url], { type: "text/plain" })),
-                })]);
-              } else {
-                await navigator.clipboard.writeText(await link);
-              }
-              copiedSnapshot = JSON.stringify(snapshot);
-              updateCopiedState();
-              document.querySelector("#save-status")!.textContent = "Share link copied";
-              document.querySelector<HTMLInputElement>("#share-url")!.hidden = true;
-            } catch (error) {
-              try {
-                const box = document.querySelector<HTMLInputElement>("#share-url")!;
-                box.value = await link;
-                box.hidden = false;
-                box.select();
-                document.querySelector("#save-status")!.textContent = "Copy unavailable. Copy the link below.";
-              } catch (shareError) {
-                showError(shareError);
-              }
-            }
-          }
+          await runDelivery(target.id as 'print' | 'csv' | 'share');
           break;
         case "adopt":
           if (sharePreview) {
@@ -1050,14 +1245,23 @@ export async function start() {
   );
   renderWorkerCards();
   document.querySelector("#save-status")!.textContent = message === "Saved on this browser" ? "" : message;
+  function simpleSharedReport() {
+    return location.hash.startsWith('#report=') && new URLSearchParams(location.search).get('reportMode') === 'simple';
+  }
   async function previewShare() {
+    if (location.hash.startsWith("#receipt="))
+      document.querySelector<HTMLInputElement>("#receipt-input")!.value = location.href;
     readonlyCard = null;
     const reportOnly = location.hash.startsWith("#report=");
     document.body.classList.toggle("report-mode", reportOnly);
     document.querySelector<HTMLElement>("#approval-receipt")!.hidden = reportOnly;
     document.querySelector<HTMLElement>("#editor")!.hidden = false;
     document.querySelector<HTMLElement>("#readonly-view")!.hidden = true;
-    document.querySelector("#print-report")!.innerHTML = tableReport(card, true);
+    const reportBody = tableReport(card, true);
+    root.querySelector("#report-body")!.innerHTML = reportBody;
+    document.querySelector("#print-report")!.innerHTML = reportBody;
+    syncVisibleFields();
+    void renderReceipts();
     if (
       location.hash.startsWith("#card=") ||
       location.hash.startsWith("#readonly=") || location.hash.startsWith("#report=")
@@ -1068,7 +1272,7 @@ export async function start() {
           readonlyCard = sharePreview;
           document.querySelector<HTMLElement>("#editor")!.hidden = true;
           document.querySelector<HTMLElement>("#readonly-view")!.hidden = false;
-          const markup = tableReport(readonlyCard, reportOnly);
+          const markup = tableReport(readonlyCard, reportOnly, simpleSharedReport());
           document.querySelector("#readonly-report")!.innerHTML = markup;
           document.querySelector("#print-report")!.innerHTML = markup;
           return;
@@ -1089,5 +1293,16 @@ export async function start() {
   window.addEventListener("hashchange", () => {
     void previewShare();
   });
+  refreshTemplates();
   await previewShare();
+  mountSimple({
+    onDelivery: (action) => runDelivery(action, true),
+    getCard: () => card,
+    replaceCard: (next) => { card = next; },
+    persist,
+    renderDetailed: renderWorkerCards,
+    storage,
+    hasDraft: Boolean(loaded.card),
+    blocked: () => blocked,
+  });
 }

@@ -22,6 +22,7 @@ export type Entry = {
   breaks: { id: string; start: Field; end: Field; paid: boolean; automatic?: boolean }[];
 };
 export type Card = {
+  visibleFields?: { client: boolean; project: boolean; content: boolean };
   content?: Record<string, string>;
   emptyRows?: string[];
   syncedRows?: Record<string, string>;
@@ -360,7 +361,7 @@ export function getReport(card: Card) {
         }
       } else breaks.push({ id: b.id, start: fieldValue(b.start)!, end: fieldValue(b.end)!, paid: b.paid });
     }
-    if (e.dailyBreakMinutes) {
+    if (e.dailyBreakMinutes && !card.settings.auto && !e.breaks.some(rest => !rest.automatic && (rest.start.raw || rest.end.raw))) {
       breaks.push({ start, end: (start + e.dailyBreakMinutes) % 1440, paid: false });
     }
     segments.push({
@@ -375,7 +376,7 @@ export function getReport(card: Card) {
       breaks,
     });
   }
-  const settings = card.entries.some((e) => e.dailyBreakMinutes !== undefined) ? { ...card.settings, auto: false } : card.settings;
+  const settings = card.settings;
   let result = report(segments, settings, range, range.dates, card.billing);
   const invalidOutside = new Set(result.issues.filter((issue) => !selectedIds.has(issue.segmentId)).map((issue) => issue.segmentId));
   if (invalidOutside.size) result = report(segments.filter((segment) => !invalidOutside.has(segment.id)), settings, range, range.dates, card.billing);

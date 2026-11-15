@@ -36,11 +36,11 @@ test("cold mobile input under throttling", async ({ page, browserName }) => {
     } as PerformanceObserverInit);
   });
   const start = Date.now();
-  await page.goto("/");
+  await page.goto("/decimal/");
   await page.locator(".day").last().locator(".work-fields input").nth(0).fill("9");
   await page.locator(".day").last().locator(".work-fields input").nth(1).fill("10");
   await page.locator(".day").last().locator(".work-fields input").nth(1).blur();
-  await expect(page.locator("#total")).toHaveText("1:00");
+  await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("1:00");
   const elapsed = Date.now() - start;
   console.log(`Cold mobile effective input ${elapsed}ms`);
   console.log(

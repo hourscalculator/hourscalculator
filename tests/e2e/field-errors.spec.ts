@@ -1,8 +1,9 @@
+import { openDetailed, chooseRange } from "./helpers";
 import { test, expect } from '@playwright/test';
 test('custom weeks clip dates and errors point to fields', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
-  await page.goto('/');
-  await page.locator('#choose-dates').click();
+  await openDetailed(page);
+  await page.locator('[data-choose-dates]').click();
   await page.locator('#range-start').fill('2026-11-01');
   await page.locator('#range-end').fill('2026-11-15');
   await page.locator('#apply-dates').click();
@@ -32,10 +33,10 @@ test('custom weeks clip dates and errors point to fields', async ({page}) => {
 });
 
 test('hidden custom end date does not block weekly export', async ({page}) => {
-  await page.goto('/');
-  await page.locator('[data-card="anchor"]').fill('2027-01-11');
-  await page.locator('[data-card="anchor"]').blur();
-  await expect(page.locator('[data-card="endDate"]')).toBeDisabled();
+  await openDetailed(page);
+  await chooseRange(page, '2027-01-11', '2027-01-17');
+  await page.locator('[data-card="length"]').selectOption('1');
+  await expect(page.locator('#range-end')).toBeDisabled();
   const download = page.waitForEvent('download');
   await page.locator('#csv').click();
   await download;

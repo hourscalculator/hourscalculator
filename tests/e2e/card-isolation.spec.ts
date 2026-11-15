@@ -1,9 +1,10 @@
+import { openDetailed } from "./helpers";
 import { test, expect } from '@playwright/test';
 
 test('copied cards preserve independent periods and daily breaks after reload', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await openDetailed(page);
   await page.locator('[data-card="name"]').fill('First');
   await page.locator('[data-card="length"]').selectOption('2');
   await page.locator('[data-setting="auto"]').check();

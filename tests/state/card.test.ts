@@ -95,3 +95,22 @@ test("invalid drafts outside a custom range do not block its report", () => {
   outside.start.dirty = true;
   expect(getReport(card).errors).toEqual([]);
 });
+test('mixed historical rates aggregate regular pay independently of selected card', async () => {
+ const {summaryReport}=await import('../../src/ui/report');
+ const card=createCard('2026-11-09');
+ card.settings.rate=2000;
+ let e=addEntry(card,'2026-11-09','a'); setMinute(card,e,e.start,540); setMinute(card,e,e.end,1020);
+ addEmployee(card,'b'); card.settings.rate=3000;
+ e=addEntry(card,'2026-11-09','b'); setMinute(card,e,e.start,540); setMinute(card,e,e.end,1020);
+ const total=()=>summaryReport(card,true).split('Gross pay').at(-1)!;
+ expect(total()).toContain('$400.00</td><td class="operator">+</td><td>$0.00');
+ selectEmployee(card,'primary');
+ expect(total()).toContain('$400.00</td><td class="operator">+</td><td>$0.00');
+});
+test('explicit lunch replaces the same legacy minute deduction', () => {
+ const card=createCard('2026-11-09'); const entry=addEntry(card,'2026-11-09','lunch');
+ setMinute(card,entry,entry.start,540); setMinute(card,entry,entry.end,1020);
+ entry.dailyBreakMinutes=30;
+ entry.breaks.push({id:'rest',paid:false,start:{raw:'12:00',value:720,ampm:'PM',dirty:false},end:{raw:'12:30',value:750,ampm:'PM',dirty:false}});
+ expect(getReport(card).total).toBe(450);
+});

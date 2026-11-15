@@ -64,3 +64,19 @@ test('receipt uses bounded shared codec and read-only mode uses v2 migration', a
   expect(await decodeReceiptLink('#' + await encodeReceiptLink(receipt))).toEqual(receipt);
   expect((await decodeShare('#' + await encodeShare(c, 'readonly'))).version).toBe(2);
 });
+test('Simple CSV exports complete Sunday overnight and gross', async () => {
+ const {createSimpleMeta,selectSimpleDay,setSimpleDefault,setSimpleBreak}=await import('../../src/state/simple');
+ const card=createCard('2026-11-09'); const meta=createSimpleMeta(card); card.settings.rate=2000;
+ selectSimpleDay(card,'2026-11-15',true,meta);setSimpleDefault(card,meta,'start','10','PM');setSimpleDefault(card,meta,'end','6','AM');setSimpleBreak(card,meta,30);
+ expect(csv(card,true)).toContain('"2026-11-15","450","7:30"');
+ expect(csv(card,true)).toContain('"Gross pay cents","15000"');
+});
+test('Simple CSV retains complete export metadata and wage columns', async () => {
+ const {createSimpleMeta,setSimpleDefault}=await import('../../src/state/simple');
+ const card=createCard('2026-11-09');const meta=createSimpleMeta(card,true);
+ setSimpleDefault(card,meta,'start','8','AM');setSimpleDefault(card,meta,'end','4','PM');
+ const detailed=csv(card);const simple=csv(card,true);
+ for(const label of ['Complete settings','Billing','Period','Regular minutes','Overtime minutes','Work period','Actual date','Conversion','Automatic break']) {
+ expect(detailed).toContain(`"${label}"`);expect(simple).toContain(`"${label}"`);
+ }
+});

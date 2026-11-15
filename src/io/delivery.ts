@@ -1,3 +1,4 @@
+import { reportForMode } from "../state/simple";
 import { decodeReceipt } from "./workflows";
 import {
   type Receipt,
@@ -29,6 +30,8 @@ export function decodeCard(text: string): Card {
     });
   if (parsed && typeof parsed === "object") delete parsed.workdays;
   const c = parsed as Card;
+  if (c?.visibleFields && ['client', 'project', 'content'].some(key => typeof c.visibleFields![key as keyof NonNullable<Card['visibleFields']>] !== 'boolean'))
+    throw Error('Invalid field visibility');
   if (
     !c ||
     c.version !== 2 ||
@@ -196,9 +199,9 @@ const csvCell = (value: unknown) =>
   `"${String(value ?? "")
     .replace(/^[\s]*[=+@-]/, "'$&")
     .replace(/"/g, '""')}"`;
-export function csv(card: Card): string {
+export function csv(card: Card, simple = false): string {
   const table = getTableReport(card);
-  if (table.errors.length)
+  if (!simple && table.errors.length)
     throw Error("Fix input errors before exporting");
   if (card.multi && card.employees.length)
     return (
@@ -221,7 +224,7 @@ export function csv(card: Card): string {
         .map((row) => row.map(csvCell).join(","))
         .join("\r\n")
     );
-  const r = getReport(card);
+  const r = reportForMode(card, simple);
   if (r.errors.length) throw Error("Fix input errors before exporting");
   const rows: unknown[][] = [
     ["Time card", card.name],

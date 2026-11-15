@@ -1,6 +1,7 @@
+import { openDetailed } from "./helpers";
 import { test, expect } from '@playwright/test';
 test('weekly default and compact page', async ({page}) => {
-  await page.goto('/');
+  await openDetailed(page);
   await expect(page.locator('.overtime-rule')).toHaveValue('weekly');
   await page.locator('[data-setting="rate"]').fill('20');
   await page.locator('[data-setting="rate"]').blur();

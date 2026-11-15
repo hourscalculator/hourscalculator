@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 const html = readFileSync("dist/index.html", "utf8");
 assert.equal((html.match(/<h1[ >]/g) || []).length, 1);
+assert.ok(html.includes("<h1>Free Time Card Calculator</h1>"));
 assert.match(html, /<html lang="en">/);
 assert.match(html, /Time Card Calculator – Free Hours &amp; Pay Calculator/);
 assert.equal(
@@ -41,7 +42,7 @@ for (const path of ['with-lunch', 'biweekly', 'decimal']) {
 
 assert.ok(html.includes('href="/" class="brand"'));
 assert.ok(!html.includes('id="help-details"'));
-assert.ok(!html.includes('id="templates"'));
+assert.ok(html.includes('id="templates"'));
 const words = text => text.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).length;
 const article = page => page.match(/<article id="help">([\s\S]*?)<\/article>/)[1];
 assert.ok(words(article(html)) >= 1200 && words(article(html)) <= 1800);

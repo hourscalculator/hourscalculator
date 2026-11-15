@@ -1,11 +1,12 @@
+import { openDetailed } from "./helpers";
 import { test, expect } from '@playwright/test';
 test('named card, optional content, print and shared report match', async ({page}) => {
   await page.addInitScript(() => Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(value:string)=>{(window as unknown as {copied:string}).copied=value;}}}));
   await page.setViewportSize({width:390,height:844});
-  await page.goto('/');
+  await openDetailed(page);
   await expect(page.locator('[data-setting="rate"]')).toHaveValue('');
-  await expect(page.locator('.rate-input #rate-currency')).toHaveText('$');
-  await expect(page.locator('#daily-report thead')).not.toContainText('Content');
+  await expect(page.locator('.rate-input .rate-currency')).toHaveText('$');
+  await expect(page.locator('#report-body thead')).not.toContainText('Content');
   const name = await page.locator('[data-card="name"]').boundingBox();
   const settings = await page.locator('.quick-settings').boundingBox();
   expect(name!.y).toBeLessThan(settings!.y);
@@ -13,8 +14,8 @@ test('named card, optional content, print and shared report match', async ({page
   const monday = page.locator('.day').first();
   await monday.locator('[data-add-content]').click();
   await monday.locator('[data-content]').fill('Equipment setup <review>');
-  await expect(page.locator('#daily-report thead')).toContainText('Content');
-  await expect(page.locator('#daily-report .report-content').first()).toHaveText('Equipment setup <review>');
+  await expect(page.locator('#report-body thead')).toContainText('Content');
+  await expect(page.locator('#report-body .report-content').first()).toHaveText('Equipment setup <review>');
   await page.reload();
   await expect(monday.locator('[data-content]')).toHaveValue('Equipment setup <review>');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -24,6 +25,6 @@ test('named card, optional content, print and shared report match', async ({page
   await expect(page.locator('#save-status')).toHaveText('Share link copied');
   const url = await page.evaluate(() => (window as unknown as {copied:string}).copied);
   await page.goto(url);
-  expect(await page.locator('#readonly-report').innerHTML()).toBe(printed);
+  await expect.poll(() => page.locator('#readonly-report').innerHTML()).toBe(printed);
   await expect(page.locator('#readonly-report')).toContainText('Equipment setup <review>');
 });

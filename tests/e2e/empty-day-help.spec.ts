@@ -1,6 +1,7 @@
+import { openDetailed } from "./helpers";
 import { test, expect } from '@playwright/test';
 test('last removal persists empty day and overtime help opens', async ({page}) => {
-  await page.goto('/');
+  await openDetailed(page);
   const day = page.locator('.day').first();
   await day.locator('[data-remove]').click();
   await expect(day.locator('.period')).toHaveCount(0);

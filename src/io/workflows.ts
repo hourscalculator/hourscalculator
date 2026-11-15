@@ -11,6 +11,7 @@ export type Template = {
   name: string;
   values: Pick<
     Card,
+    | "visibleFields"
     | "length"
     | "format"
     | "showAmPm"
@@ -25,6 +26,7 @@ export type Template = {
 export function makeTemplate(card: Card, name: string, id: string): Template {
   const { rate, ...settings } = card.settings;
   const {
+    visibleFields,
     length,
     format,
     showAmPm,
@@ -39,6 +41,7 @@ export function makeTemplate(card: Card, name: string, id: string): Template {
     id,
     name,
     values: {
+      visibleFields,
       length,
       format,
       showAmPm,

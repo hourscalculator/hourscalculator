@@ -15,7 +15,7 @@
   #print-report {
     display: block;
   }
-  #print-report h1 {
+  #print-report .print-title {
     font-size: 20pt;
   }
   #print-report table {
@@ -54,3 +54,5 @@
 @media print {
   .pay-summary { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+
+@media print { #simple-home, #simple-wizard, body > dialog { display: none !important; } }

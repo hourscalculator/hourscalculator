@@ -1,3 +1,4 @@
+import { openDetailed } from "./helpers";
 import { expect, test } from "@playwright/test";
 test("reload, CSV download, copied report and print", async ({ page }) => {
   await page.addInitScript(() => {
@@ -6,13 +7,13 @@ test("reload, CSV download, copied report and print", async ({ page }) => {
       writeText: async (value: string) => { (window as unknown as {copied: string}).copied = value; },
     }});
   });
-  await page.goto("/");
+  await openDetailed(page);
   await page.locator('[data-card="name"]').fill("Alex");
   await page.locator(".day").last().locator(".work-fields input").nth(0).fill("9");
   await page.locator(".day").last().locator(".work-fields input").nth(1).fill("5p");
   await page.locator(".day").last().locator(".work-fields input").nth(1).blur();
   await page.reload();
-  await expect(page.locator("#total")).toHaveText("8:00");
+  await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("8:00");
   const download = page.waitForEvent("download");
   await page.locator("#csv").click();
   const file = await download;
@@ -40,7 +41,7 @@ test("reload, CSV download, copied report and print", async ({ page }) => {
   await page.screenshot({ path: "test-results/print.png", fullPage: true });
 });
 test("damaged storage survives editing", async ({ page }) => {
-  await page.goto("/");
+  await openDetailed(page);
   await page.evaluate(() => localStorage.setItem("time-card-v1", "broken"));
   await page.reload();
   await expect(page.locator("#save-status")).toContainText("preserved");
@@ -68,15 +69,16 @@ test("populated month prints across multiple pages", async ({
     setMinute(c, e, e.start, 540);
     setMinute(c, e, e.end, 1020);
   }
-  await page.goto("/");
+  await openDetailed(page);
   await page.evaluate(
     (data) => localStorage.setItem("time-card-v1", JSON.stringify(data)),
     c,
   );
   await page.reload();
-  await expect(page.locator("#total")).toHaveText("240:00");
+  await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("240:00");
   await page.emulateMedia({ media: "print" });
-  await expect(page.locator("#print-report tbody tr")).toHaveCount(37);
+  await expect(page.locator("#print-report .employee-report .summary-table > tbody:not(.pay-summary) > tr:not(.report-total)")).toHaveCount(30);
+  await expect(page.locator("#print-report .employee-report .summary-table > tbody:not(.pay-summary) > .report-total")).toContainText("240:00");
   await page.screenshot({
     path: `test-results/month-print-${browserName}.png`,
     fullPage: true,

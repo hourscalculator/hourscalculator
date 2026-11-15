@@ -1,9 +1,10 @@
+import { openDetailed } from "./helpers";
 import { expect, test } from '@playwright/test';
 test('two tables, persistent rows and any-day forward fill', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await expect(page.locator('#days .entry-table')).toHaveCount(1);
-  await expect(page.locator('#days details')).toHaveCount(0);
+  await openDetailed(page);
+  await expect(page.locator('[data-days] .entry-table')).toHaveCount(1);
+  await expect(page.locator('[data-days] details')).toHaveCount(0);
   const wednesday = page.locator('.day').nth(2);
   await wednesday.locator('[data-field="start"]').fill('9');
   await wednesday.locator('[data-field="end"]').fill('5p');
@@ -12,15 +13,19 @@ test('two tables, persistent rows and any-day forward fill', async ({ page }) =>
   await expect(page.locator('.day').first().locator('[data-field="start"]')).toHaveValue('');
   await wednesday.locator('[data-add-break]').click();
   await expect(page.locator('[data-paid]')).toHaveCount(0);
-  await expect(page.locator('#daily-report > table')).toHaveCount(1);
-  const report = page.locator('#daily-report > table');
-  expect(await report.evaluate((el) => el.outerHTML)).toBe(
-    await page.locator('#print-report .summary-table').evaluate((el) => el.outerHTML),
-  );
-  expect(await page.locator('.report').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+  const report = page.locator('#report-body .summary-table').first();
+  const printed = page.locator('#print-report .employee-report .summary-table').first();
+  await expect(report).toContainText('Wed');
+  await page.setViewportSize({width:1440,height:900});
+  expect((await report.boundingBox())!.width).toBeGreaterThan((await page.locator('#report-body').boundingBox())!.width - 2);
+  await page.setViewportSize({width:390,height:844});
+  const reportRows = await report.locator('tbody tr').evaluateAll(rows => rows.map(row => [...row.querySelectorAll('th,td')].map(cell => cell.textContent)));
+  const printRows = await printed.locator('tbody tr').evaluateAll(rows => rows.map(row => [...row.querySelectorAll('th,td')].map(cell => cell.textContent)));
+  expect(reportRows).toEqual(printRows);
+  expect(await page.locator('#report-body .summary-table').first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
   const positions = await page.evaluate(() => ({
     settings: document.querySelector('.quick-settings')!.getBoundingClientRect().top,
-    entry: document.querySelector('#days')!.getBoundingClientRect().top,
+    entry: document.querySelector('[data-days]')!.getBoundingClientRect().top,
     name: document.querySelector('[data-card="name"]')!.getBoundingClientRect().top,
     report: document.querySelector('.report')!.getBoundingClientRect().bottom,
   }));

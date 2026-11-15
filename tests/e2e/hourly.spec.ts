@@ -1,21 +1,22 @@
+import { openDetailed } from "./helpers";
 import { expect, test } from '@playwright/test';
 test('Monday fills empty weekdays and restores with mobile summary', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await openDetailed(page);
   const monday = page.locator('.day').filter({ has: page.locator('.day-heading span', { hasText: /^Mon$/ }) }).first();
   await monday.locator('[data-field="start"]').fill('900');
   await monday.locator('[data-field="end"]').fill('5p');
   await monday.locator('[data-field="end"]').blur();
-  await expect(page.locator('#total')).toHaveText('40:00');
+  await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('40:00');
   await expect(page.locator('.meridiem').first()).toBeVisible();
-  await expect(page.locator('#daily-report')).toContainText('Mon');
+  await expect(page.locator('#report-body')).toContainText('Mon');
   await page.reload();
-  await expect(page.locator('#total')).toHaveText('40:00');
+  await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('40:00');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/hourly-mobile.png', fullPage: true });
 });
 test('Monday preserves existing days and AM/PM toggles exact minutes', async ({ page }) => {
-  await page.goto('/');
+  await openDetailed(page);
   const tuesday = page.locator('.day').nth(1);
   await tuesday.locator('[data-field="start"]').fill('10');
   await tuesday.locator('[data-field="end"]').fill('4p');
@@ -25,14 +26,14 @@ test('Monday preserves existing days and AM/PM toggles exact minutes', async ({ 
   await monday.locator('[data-field="end"]').fill('5p');
   await monday.locator('[data-field="end"]').blur();
   await expect(tuesday.locator('[data-field="start"]')).toHaveValue('10:00');
-  await expect(page.locator('#total')).toHaveText('38:00');
+  await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('38:00');
   await monday.locator('.meridiem').first().click();
   await expect(monday.locator('.meridiem').first()).toHaveAttribute('aria-checked', 'true');
   await expect(monday.locator('.meridiem').first()).toHaveText('PM');
   await expect(tuesday.locator('[data-field="start"]')).toHaveValue('10:00');
 });
 test('Monday fills missing fields and newly entered breaks without overwriting', async ({ page }) => {
-  await page.goto('/');
+  await openDetailed(page);
   const tuesday = page.locator('.day').nth(1);
   await tuesday.locator('[data-field="start"]').fill('10');
   await tuesday.locator('[data-field="start"]').blur();
@@ -47,5 +48,5 @@ test('Monday fills missing fields and newly entered breaks without overwriting',
   await monday.locator('[data-field="b0-end"]').fill('1230p');
   await monday.locator('[data-field="b0-end"]').blur();
   await expect(tuesday.locator('[data-field="b0-end"]')).toHaveValue('12:30');
-  await expect(page.locator('#total')).toHaveText('36:30');
+  await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('36:30');
 });

@@ -1,7 +1,8 @@
+import { openDetailed } from "./helpers";
 import { test, expect } from '@playwright/test';
 test('automatic break is a real row, endpoints drag, help closes outside', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
-  await page.goto('/');
+  await openDetailed(page);
   const day = page.locator('.day').last();
   await day.locator('[data-field="start"]').fill('9');
   await day.locator('[data-field="end"]').fill('5p');
