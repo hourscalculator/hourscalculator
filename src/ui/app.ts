@@ -114,8 +114,8 @@ export async function start() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function updateShortcutAnchors() {
-    for (const [selector, anchor] of [["[data-period-anchor]", "biweekly"], ["[data-lunch-anchor]", "lunch"]]) {
-      root.querySelectorAll<HTMLElement>(selector).forEach((element, index) => {
+    for (const anchor of ["biweekly", "lunch"]) {
+      root.querySelectorAll<HTMLElement>(`[data-anchor="${anchor}"]`).forEach((element, index) => {
         if (index === 0) element.id = anchor;
         else element.removeAttribute("id");
       });
@@ -378,7 +378,17 @@ export async function start() {
           row = result.rows.find((r) => r.date === date);
         html += `<tr class="day ${context ? "context" : ""}" data-date="${date}"><td colspan="2"><div class="day-content"><div class="day-heading"><span>${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(day * 86400000))}</span><time class="day-date" datetime="${date}">${new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(new Date(day * 86400000))}</time><span class="day-hours">${context ? "Context day" : row ? hhmm(row.minutes) : "—"}</span></div><div class="timeline" ${entries.length ? "" : "hidden"} data-timeline="${date}" aria-label="Timeline ${date}"><div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>${timeline(entries) || '<div class="empty-track">Enter In and Out to show the timeline</div>'}</div>`;
         for (const e of entries) {
-          html += `<div class="period" data-period="${e.id}"><div class="work-fields">${input(e, e.start, "start", "In")}${input(e, e.end, "end", "Out")}<button class="icon-button" data-remove="${e.id}" aria-label="Delete work period ${date}">×</button></div>${e.actualDate && e.actualDate !== e.row ? `<small>Actual start date ${e.actualDate}</small>` : ""}${e.start.value !== null && e.end.value !== null && e.end.value < e.start.value ? "<small>Out is on the next day (+1 day)</small>" : ""}<div class="break-details">${e.breaks.map((b, i) => `<div class="break-fields">${input(e, b.start, `b${i}-start`, "Break in")}${input(e, b.end, `b${i}-end`, "Break out")}${b.paid ? '<span class="legacy-paid">Paid break</span>' : ""}<button data-remove-break="${e.id}:${i}" aria-label="Delete break">×</button></div>`).join("")}</div></div>`;
+          const showMinuteBreak =
+            e.dailyBreakMinutes !== undefined &&
+            e.dailyBreakMinutes > 0 &&
+            !card.settings.auto &&
+            !e.breaks.some(
+              rest => !rest.automatic && (rest.start.raw || rest.end.raw),
+            );
+          const minuteBreak = showMinuteBreak
+            ? `<div class="daily-break legacy-break-summary">Unpaid break: ${e.dailyBreakMinutes} min</div>`
+            : "";
+          html += `<div class="period" data-period="${e.id}"><div class="work-fields">${input(e, e.start, "start", "In")}${input(e, e.end, "end", "Out")}<button class="icon-button" data-remove="${e.id}" aria-label="Delete work period ${date}">×</button></div>${e.actualDate && e.actualDate !== e.row ? `<small>Actual start date ${e.actualDate}</small>` : ""}${e.start.value !== null && e.end.value !== null && e.end.value < e.start.value ? "<small>Out is on the next day (+1 day)</small>" : ""}<div class="break-details">${minuteBreak}${e.breaks.map((b, i) => `<div class="break-fields">${input(e, b.start, `b${i}-start`, "Break in")}${input(e, b.end, `b${i}-end`, "Break out")}${b.paid ? '<span class="legacy-paid">Paid break</span>' : ""}<button data-remove-break="${e.id}:${i}" aria-label="Delete break">×</button></div>`).join("")}</div></div>`;
         }
         html += `<button class="text-button" data-add="${date}">+ Add work period</button><button class="text-button" data-break-date="${date}" data-add-break="${entries.slice().reverse().find((e) => e.start.value !== null && e.end.value !== null)?.id ?? entries[0]?.id ?? ""}">+ Add break</button><button class="text-button" data-add-content="${date}">+ Add content</button>${card.content && Object.hasOwn(card.content, date) ? `<label class="content-field">Work content<input type="text" data-content="${date}" maxlength="2000" value="${escape(card.content[date])}"></label>` : ""}<ul class="day-errors" role="alert" data-errors="${date}"></ul></div></td></tr>`;
       }

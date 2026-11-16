@@ -28,6 +28,7 @@ export function decodeCard(text: string): Card {
       employees: [],
       receipts: [],
     });
+  if (parsed?.settings?.mode === "weekly40") parsed.settings.mode = "weekly";
   if (parsed && typeof parsed === "object") delete parsed.workdays;
   const c = parsed as Card;
   if (c?.visibleFields && ['client', 'project', 'content'].some(key => typeof c.visibleFields![key as keyof NonNullable<Card['visibleFields']>] !== 'boolean'))

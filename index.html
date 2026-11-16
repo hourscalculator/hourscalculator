@@ -13,7 +13,7 @@
   </head>
   <body>
     <header class="site-header">
-      <a href="/" class="brand">hours<span>calculator</span></a
+      <a href="/" class="brand" aria-label="Punch Card Calculator">punch<span>card</span>calculator</a
       ><a href="#help">Help</a>
     </header>
     <main>
@@ -46,7 +46,7 @@
               </div>
               <div class="settings-grid quick-settings">
                 <div class="quick-group">
-                  <label id="biweekly" class="biweekly" data-period-anchor>Report period<select data-card="length">
+                  <label data-anchor="biweekly" class="biweekly">Report period<select data-card="length">
                     <option value="1">1 week</option>
                     <option value="2" selected>2 weeks</option>
                     <option value="3">3 weeks</option>
@@ -56,7 +56,7 @@
                   </select></label>
                 </div>
                 <div class="quick-group">
-                  <label id="lunch" class="check" data-lunch-anchor><input data-setting="auto" type="checkbox" checked="checked" /> Automatic daily unpaid break</label>
+                  <label data-anchor="lunch" class="check"><input data-setting="auto" type="checkbox" checked="checked" /> Automatic daily unpaid break</label>
                   <label><span class="minutes-control"><input aria-label="Daily break minutes" data-setting="deduction" type="number" min="0" max="1439" value="30" /> minutes</span></label>
                 </div>
               </div>

@@ -26,14 +26,35 @@ test("client project fields persist, export and print with working navigation", 
   await page.screenshot({ path: 'test-results/client-project-mobile.png', fullPage: true });
   await page.locator('.brand').click();
   await expect(page).toHaveURL(/\/$/);
-  for (const anchor of ['lunch', 'biweekly', 'decimal-settings']) {
-    await page.locator(`#shortcuts a[href="#${anchor}"]`).click();
-    await expect(page.locator(`#${anchor}`)).toBeVisible();
-    await expect(page.locator(`#${anchor}`)).toHaveCount(1);
-  }
+  const templateState = await page.locator('#worker-card-template').evaluate((template: HTMLTemplateElement) => ({
+    ids: Array.from(template.content.querySelectorAll('[id]'), element => element.id),
+    anchors: Array.from(template.content.querySelectorAll('[data-anchor]'), element => element.getAttribute('data-anchor')).sort(),
+  }));
+  expect(templateState.ids).toEqual([]);
+  expect(templateState.anchors).toEqual(['biweekly', 'lunch']);
   await page.locator('#add-time-card').click();
+  await page.locator('#add-time-card').click();
+  await expect(page.locator('.worker-card')).toHaveCount(3);
+  const duplicateIds = await page.evaluate(() => {
+    const counts = new Map<string, number>();
+    document.querySelectorAll('[id]').forEach(element => counts.set(element.id, (counts.get(element.id) ?? 0) + 1));
+    return Array.from(counts, ([id, count]) => count > 1 ? id : null).filter((id): id is string => id !== null);
+  });
+  expect(duplicateIds).toEqual([]);
   await expect(page.locator('#lunch')).toHaveCount(1);
   await expect(page.locator('#biweekly')).toHaveCount(1);
+  for (const anchor of ['lunch', 'biweekly', 'decimal-settings']) {
+    await page.locator(`#shortcuts a[href="#${anchor}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`#${anchor}$`));
+    await expect(page.locator(`#${anchor}`)).toBeVisible();
+    await expect(page.locator(`#${anchor}`)).toHaveCount(1);
+    const target = await page.locator(`#${anchor}`).evaluate(element => ({
+      dataAnchor: element.getAttribute('data-anchor'),
+      inFirstCard: element.closest('.worker-card') === document.querySelector('.worker-card'),
+    }));
+    if (anchor === 'decimal-settings') expect(target).toEqual({dataAnchor: null, inFirstCard: false});
+    else expect(target).toEqual({dataAnchor: anchor, inFirstCard: true});
+  }
   expect(errors).toEqual([]);
 });
 test("all static entry paths have independent canonicals and survive refresh", async ({

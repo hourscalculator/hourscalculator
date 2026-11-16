@@ -98,6 +98,23 @@ for (const [path, expectedTitle, expectedHeading, keyword] of expectedPages) {
   assert.notEqual(title, heading, path);
   assert.ok(description.toLowerCase().includes(keyword), path);
   titles.add(title);
+  if (path) {
+    const breadcrumb = [...page.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)]
+      .map(([, json]) => JSON.parse(json))
+      .find((schema) => schema["@type"] === "BreadcrumbList");
+    assert.ok(breadcrumb, path);
+    assert.deepEqual(
+      breadcrumb.itemListElement.map(({ position, name, item }) => ({ position, name, item })),
+      [
+        { position: 1, name: "Home", item: canonical },
+        { position: 2, name: expectedHeading, item: `${canonical}${path}` },
+      ],
+      path,
+    );
+
+    const visibleBreadcrumb = page.match(/<nav aria-label="Breadcrumb">([\s\S]*?)<\/nav>/)?.[1];
+    assert.equal(visibleBreadcrumb?.trim(), `<a href="/">Home</a> &gt; ${expectedHeading}`, path);
+  }
 }
 assert.equal(titles.size, 4);
 assert.match(html, /<h1>Time Card Calculator<\/h1>\s*<p class="lede">Free, no signup — calculates hours, lunch breaks, weekly and biweekly overtime, decimal hours and gross pay\.<\/p>/);
@@ -134,6 +151,8 @@ assert.equal((sitemap.match(/<lastmod>2026-11-15<\/lastmod>/g)||[]).length,6);
 const expectedOrigin = process.env.SITE_URL || "https://punchcardcalculator.com";
 for (const path of sitemapPaths) {
   const page = readFileSync(`dist/${path ? path + "/" : ""}index.html`, "utf8");
+  assert.ok(page.includes('<a href="/" class="brand" aria-label="Punch Card Calculator">punch<span>card</span>calculator</a'));
+  assert.ok(!/hourscalculator/i.test(page));
   const expectedUrl = `${new URL(expectedOrigin).origin}/${path ? path + "/" : ""}`;
   assert.ok(page.includes(`rel="canonical" href="${expectedUrl}"`));
   assert.ok(page.includes(`property="og:url" content="${expectedUrl}"`));
@@ -149,5 +168,69 @@ for (const path of sitemapPaths) {
       }
     };
     checkUrls(JSON.parse(json));
+  }
+}
+
+const temporarilyExcludedPages = [
+  ["with-breaks", "Time Card Calculator With Breaks"],
+  ["free", "Free Time Card Calculator"],
+  ["overtime-calculator", "Overtime Calculator"],
+];
+const sitemapPagePaths = new Set(
+  sitemapUrls.map((url) => new URL(url).pathname.replace(/^\/|\/$/g, "")),
+);
+const indexingSwitch = readFileSync("vite.config.ts", "utf8").match(
+  /const TEMPORARY_PAGES_INDEXABLE = (true|false);/,
+);
+assert.ok(indexingSwitch, "temporary page indexing switch is missing");
+const temporarilyExcludedPagesIndexable = indexingSwitch[1] === "true";
+for (const [path, expectedHeading] of temporarilyExcludedPages) {
+  const page = readFileSync(`dist/${path}/index.html`, "utf8");
+  const head = page.match(/<head>([\s\S]*?)<\/head>/i)?.[1];
+  assert.ok(head, path);
+  const robots = [...head.matchAll(/<meta\s+name="robots"\s+content="([^"]+)"/g)].map(
+    ([, content]) => content,
+  );
+  assert.equal(robots.length, 1, path);
+  assert.equal(
+    robots[0],
+    temporarilyExcludedPagesIndexable
+      ? "index,follow,max-image-preview:large"
+      : "noindex,follow",
+    path,
+  );
+  assert.equal(sitemapPagePaths.has(path), temporarilyExcludedPagesIndexable, path);
+
+  const h1 = page.match(/<h1[^>]*>(.*?)<\/h1>/s);
+  assert.ok(h1, path);
+  const h1Text = h1[1].replace(/<[^>]*>/g, "").trim();
+  assert.equal(h1Text, expectedHeading, path);
+  const afterH1 = page.slice(page.indexOf(h1[0]) + h1[0].length);
+  const h2Texts = [...afterH1.matchAll(/<h2[^>]*>(.*?)<\/h2>/gs)].map(([, text]) =>
+    text.replace(/<[^>]*>/g, "").trim(),
+  );
+  assert.ok(!h2Texts.includes(h1Text), `${path} repeats its H1 as H2`);
+}
+
+const generatedPages = [
+  "",
+  "with-lunch",
+  "biweekly",
+  "decimal",
+  "with-breaks",
+  "free",
+  "overtime-calculator",
+  "privacy",
+  "terms",
+];
+for (const pagePath of generatedPages) {
+  const page = readFileSync(`dist/${pagePath ? pagePath + "/" : ""}index.html`, "utf8");
+  const sections = [...page.matchAll(/<section\b[^>]*>([\s\S]*?)<\/section>/gs)].map(
+    ([, section]) => section,
+  );
+  for (const section of sections.filter((html) => /<h2[^>]*>Related\b/i.test(html))) {
+    for (const [path] of temporarilyExcludedPages) {
+      assert.ok(!section.includes(`href="/${path}/"`), `${pagePath} Related includes /${path}/`);
+    }
   }
 }

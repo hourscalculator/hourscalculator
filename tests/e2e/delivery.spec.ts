@@ -1,5 +1,33 @@
 import { openDetailed } from "./helpers";
 import { expect, test } from "@playwright/test";
+import { gzipSync } from "node:zlib";
+import { addEntry, createCard, setMinute } from "../../src/state/card";
+
+test("legacy weekly40 report share opens with weekly overtime", async ({ page }) => {
+  const card = createCard("2026-11-09");
+  card.name = "Legacy weekly card";
+  const entry = addEntry(card, card.anchor, "legacy-shift");
+  setMinute(card, entry, entry.start, 540);
+  setMinute(card, entry, entry.end, 1080);
+  const legacyCard = {
+    ...card,
+    settings: { ...card.settings, mode: "weekly40" },
+  };
+  const payload = gzipSync(Buffer.from(JSON.stringify(legacyCard))).toString("base64url");
+
+  await page.goto(`/?reportMode=simple#report=${payload}`);
+  await expect(page.locator("#readonly-view")).toBeVisible();
+  await expect(page.locator("#readonly-report")).toContainText("Legacy weekly card");
+  await expect(page.locator("#readonly-report [aria-label='Overtime rule']")).toHaveValue(
+    /Weekly overtime after 40 hours/,
+  );
+  const hoursRow = page.locator("#readonly-report .pay-summary tr").filter({
+    hasText: "hh:mm",
+  });
+  await expect(hoursRow).toContainText("9:00");
+  await expect(hoursRow).toContainText("0:00");
+});
+
 test("reload, CSV download, copied report and print", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {

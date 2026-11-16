@@ -2,13 +2,18 @@ import { topics, relatedPages } from "./src/seo/content";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { defineConfig } from "vite";
 const SITE_URL = process.env.SITE_URL || "https://punchcardcalculator.com";
+const TEMPORARY_PAGE_PATHS = ["with-breaks", "free", "overtime-calculator"];
+const TEMPORARY_PAGES_INDEXABLE = false;
 
-function social(html: string) {
+function social(html: string, path = "") {
   const url = html.match(/rel="canonical" href="([^"]+)"/)![1];
   const title = html.match(/<title>(.*?)<\/title>/)![1];
   const description = html.match(/name="description"\s+content="([^"]+)"/)![1];
   const origin = new URL(url).origin;
-  return html.replace(/<link data-social[\s\S]*?<!-- social-end -->/g, "").replace("</head>", `<link data-social rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="robots" content="index,follow,max-image-preview:large"><meta property="og:type" content="website"><meta property="og:site_name" content="Punch Card Calculator"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${url}"><meta property="og:image" content="${origin}/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${origin}/og-image.png"><!-- social-end --></head>`);
+  const robots = TEMPORARY_PAGE_PATHS.includes(path) && !TEMPORARY_PAGES_INDEXABLE
+    ? "noindex,follow"
+    : "index,follow,max-image-preview:large";
+  return html.replace(/<link data-social[\s\S]*?<!-- social-end -->/g, "").replace("</head>", `<link data-social rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="robots" content="${robots}"><meta property="og:type" content="website"><meta property="og:site_name" content="Punch Card Calculator"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${url}"><meta property="og:image" content="https://punchcardcalculator.com/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="https://punchcardcalculator.com/og-image.png"><!-- social-end --></head>`);
 }
 export default defineConfig(() => {
   const raw = SITE_URL;
@@ -93,7 +98,15 @@ export default defineConfig(() => {
                   return open + JSON.stringify(schema) + close;
                 },
               );
-              source = source.replace('<article id="help">', `<nav aria-label="Breadcrumb"><a href="/">Home</a> &gt; <a href="/">Time Card Calculator</a> &gt; ${title}</nav><script type="application/ld+json">${JSON.stringify({"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:["Home","Time Card Calculator",title].map((name,i)=>({"@type":"ListItem",position:i+1,name,item:i===2?`${origin}/${path}/`:`${origin}/`}))})}</script><article id="help">`);
+              const breadcrumbSchema = JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                itemListElement: [
+                  { "@type": "ListItem", position: 1, name: "Home", item: `${origin}/` },
+                  { "@type": "ListItem", position: 2, name: title, item: `${origin}/${path}/` },
+                ],
+              });
+              source = source.replace('<article id="help">', `<nav aria-label="Breadcrumb"><a href="/">Home</a> &gt; ${title}</nav><script type="application/ld+json">${breadcrumbSchema}</script><article id="help">`);
               source = social(source);
               mkdirSync(`dist/${path}`, { recursive: true });
               writeFileSync(`dist/${path}/index.html`, source);
@@ -108,14 +121,19 @@ export default defineConfig(() => {
           ]) {
             let page = home.replace(/rel="canonical" href="[^"]*"/, `rel="canonical" href="${origin}/${path}/"`).replace(/<title>.*?<\/title>/s, `<title>${title}</title>`).replace(/(<meta\s+name="description"\s+content=")[^"]*/, `$1${copy}`).replace(/<h1>.*?<\/h1>/, `<h1>${title}</h1>`).replace(/<article id="help">[\s\S]*?<\/article>/, `<article id="help"><p>Return to the <a href="/">time card calculator</a>.</p><h2>${title}</h2><p>${copy}</p>${relatedPages()}</article>`);
             page = page.replace(/<script type="application\/ld\+json">.*?<\/script>/gs, "");
+            if (TEMPORARY_PAGE_PATHS.includes(path)) {
+              page = page.replace(`<h2>${title}</h2>`, "");
+            }
             if (path === "privacy" || path === "terms") page = page.replace(/<section id="calculator"[\s\S]*?<div class="help-section">/, '<div class="help-section">').replace(/<script type="module"[^>]*><\/script>/g, "");
             mkdirSync(`dist/${path}`, {recursive:true});
             page = page.replace('<article id="help">', `<nav aria-label="Breadcrumb"><a href="/">Home</a> &gt; <a href="/">Time Card Calculator</a> &gt; ${title}</nav><script type="application/ld+json">${JSON.stringify({"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:["Home","Time Card Calculator",title].map((name,i)=>({"@type":"ListItem",position:i+1,name,item:i===2?`${origin}/${path}/`:`${origin}/`}))})}</script><article id="help">`);
-            writeFileSync(`dist/${path}/index.html`, social(page));
+            writeFileSync(`dist/${path}/index.html`, social(page, path));
           }
+          const sitemapPaths = ["", "with-lunch", "biweekly", "decimal", "privacy", "terms"];
+          if (TEMPORARY_PAGES_INDEXABLE) sitemapPaths.push(...TEMPORARY_PAGE_PATHS);
           writeFileSync(
             "dist/sitemap.xml",
-            `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["", "with-lunch", "biweekly", "decimal", "privacy", "terms"].map((path) => `<url><loc>${origin}/${path ? path + "/" : ""}</loc><lastmod>2026-11-15</lastmod></url>`).join("")}</urlset>`,
+            `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${sitemapPaths.map((path) => `<url><loc>${origin}/${path ? path + "/" : ""}</loc><lastmod>2026-11-15</lastmod></url>`).join("")}</urlset>`,
           );
           writeFileSync(
             "dist/robots.txt",

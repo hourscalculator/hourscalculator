@@ -16,6 +16,40 @@ test('collapsed daily settings preserve personalized Friday on continue', async 
   await expect(page.locator('.simple-result .report-total').first()).toContainText('41:30');
 });
 
+test('Quick Fill break minutes stay visible in Detail without an inferred time', async ({page}) => {
+ await page.clock.setFixedTime(new Date('2026-11-09T04:00:00Z'));
+ await page.goto('/');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.locator('[data-break-preset][value="30"]').check();
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
+ await page.getByRole('link',{name:'Want to adjust the details? Click here to open Detailed Calculator',exact:true}).click();
+ await expect(page.locator('.legacy-break-summary')).toHaveCount(5);
+ await expect(page.locator('.legacy-break-summary').first()).toHaveText('Unpaid break: 30 min');
+ await expect(page.locator('[data-field^="b"]')).toHaveCount(0);
+ await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('40:00');
+ await page.reload();
+ await expect(page.locator('.legacy-break-summary')).toHaveCount(5);
+ await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('40:00');
+ const monday = page.locator('.day[data-date="2026-11-09"]');
+ await monday.locator('[data-add-break]').click();
+ await expect(monday.locator('.legacy-break-summary')).toHaveCount(0);
+ await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('40:00');
+});
+
+test('Quick Fill zero break has no Detail summary', async ({page}) => {
+ await page.clock.setFixedTime(new Date('2026-11-09T04:00:00Z'));
+ await page.goto('/');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
+ await page.getByRole('link',{name:'Want to adjust the details? Click here to open Detailed Calculator',exact:true}).click();
+ await expect(page.locator('.legacy-break-summary')).toHaveCount(0);
+ await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('42:30');
+});
+
 test('Detail Friday edit survives wizard back, continue, close and refresh', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.setFixedTime(new Date('2026-11-09T04:00:00Z'));
