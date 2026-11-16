@@ -39,7 +39,7 @@ test('newly selected days inherit defaults and outside entries require Detailed'
     expect(card.entries[0].start.value).toBe(480);
     expect(card.entries[0].dailyBreakMinutes).toBe(30);
     selectSimpleDay(card, '2026-11-16', true, meta);
-    expect(simpleCompatible(card)).toBe(false);
+    expect(simpleCompatible(card)).toBe(true);
 });
 test('overnight daily detail belongs to the selected shift date', () => {
     const card = createCard('2026-11-09');
@@ -149,4 +149,65 @@ test('shared report uses one identity table, minute breaks and readonly billing 
  expect(output).toContain('Hourly rate');
  expect(output).toContain('readonly');
  expect(output).toContain('30 min');
+});
+
+test('Report combines hours and omits empty rate and zero days', async () => {
+ const {tableReport}=await import('../../src/ui/report');
+ const card=createCard('2026-11-09'); const meta=createSimpleMeta(card);
+ selectSimpleDay(card,'2026-11-09',true,meta);
+ setSimpleDefault(card,meta,'start','9','AM'); setSimpleDefault(card,meta,'end','5','PM');
+ const output=tableReport(card,true,true);
+ expect(output.match(/<caption>Hours<\/caption>/g)).toHaveLength(1);
+ expect(output).not.toContain('2026-11-10');
+ expect(output).not.toContain('Rate/Hr');
+ expect(output).not.toContain('Gross pay');
+ expect(output).toContain('8:00');
+});
+
+test('Report empty card omits Break column', async () => {
+ const {tableReport}=await import('../../src/ui/report');
+ const card=createCard('2026-11-09');
+ card.multi=true;
+ const output=tableReport(card,true);
+ expect(output.match(/<caption>Hours<\/caption>/g)).toHaveLength(1);
+ expect(output).not.toContain('<th scope="col">Break</th>');
+});
+
+test('Report current week ignores historical incomplete records', () => {
+ const card=createCard('2026-11-09'); const meta=createSimpleMeta(card);
+ selectSimpleDay(card,'2026-11-09',true,meta);
+ selectSimpleDay(card,'2026-11-02',true,meta);
+ card.entries.find(entry=>entry.row==='2026-11-02')!.end.raw='';
+ expect(simpleCompatible(card)).toBe(true);
+ expect(simpleReport(card).total).toBe(510);
+ expect(simpleReport(card).errors).toEqual([]);
+});
+
+test('Report Period visibility survives snapshot decoding and legacy data keeps dates', async () => {
+ const {decodeCard}=await import('../../src/io/delivery');
+ const {tableReport}=await import('../../src/ui/report');
+ const card=createCard('2026-11-09'); const meta=createSimpleMeta(card,true);
+ setSimpleDefault(card,meta,'start','8','AM'); setSimpleDefault(card,meta,'end','4','PM');
+ card.hidePeriod=true;
+ const output=tableReport(decodeCard(JSON.stringify(card)),true,true);
+ expect(output).not.toContain('2026-11-09');
+ expect(output).toContain('Mon');
+ delete card.hidePeriod;
+ expect(tableReport(decodeCard(JSON.stringify(card)),true,true)).toContain('2026-11-09');
+});
+
+test('Report three independent daily cards total 24 hours and 600 dollars', async () => {
+ const {addEmployee}=await import('../../src/state/card');
+ const {tableReport}=await import('../../src/ui/report');
+ const card=createCard('2026-11-09');
+ for(let i=0;i<3;i++) {
+  if(i) addEmployee(card,`worker-${i}`);
+  card.settings.rate=2500;card.settings.mode='daily';
+  const meta=createSimpleMeta(card);selectSimpleDay(card,'2026-11-09',true,meta);
+  setSimpleDefault(card,meta,'start','8','AM');setSimpleDefault(card,meta,'end','4','PM');
+ }
+ const html=tableReport(card,true);
+ expect(html.match(/<caption>Hours<\/caption>/g)).toHaveLength(1);
+ expect(html.match(/class="pay-summary"/g)).toHaveLength(1);
+ expect(html).toContain('24:00');expect(html).toContain('$600.00');
 });

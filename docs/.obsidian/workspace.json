@@ -13,8 +13,27 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "quick-fill.prd.md",
+                "file": "detail.prd.md",
                 "mode": "source",
+                "source": false
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "8fea395528aac73e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8ec4d817f05387ed",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "report.prd.md",
+                "mode": "source",
+                "backlinks": true,
                 "source": false
               }
             }
@@ -69,7 +88,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 215.5
+    "width": 215.5,
+    "collapsed": true
   },
   "right": {
     "id": "2240d72191452ad8",
@@ -85,7 +105,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "quick-fill.prd.md",
+                "file": "detail.prd.md",
                 "collapseAll": true,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -102,7 +122,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "quick-fill.prd.md",
+                "file": "detail.prd.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -125,7 +145,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "quick-fill.prd.md"
+                "file": "detail.prd.md"
               }
             }
           }
@@ -134,7 +154,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -148,10 +169,13 @@
   },
   "active": "4f5b3a312b9fba3b",
   "lastOpenFiles": [
-    "README.md",
     "quick-fill.prd.md",
+    "report.prd.md",
     "detail.prd.md",
-    "Pasted image 20261116105715.png",
-    "report.prd.md"
+    "Pasted image 20261116152537.png",
+    "Pasted image 20261116145751.png",
+    "README.md",
+    "Pasted image 20261116140631.png",
+    "Pasted image 20261116105715.png"
   ]
 }

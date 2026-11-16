@@ -14,7 +14,7 @@ test('simple defaults, personalized Tuesday and breaks total forty hours', async
   await page.locator('[data-break-preset][value="30"]').check();
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
-  await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('40:00');
+  await expect(page.locator('.simple-result .report-hours .report-total td:first-of-type')).toHaveText('40:00');
   await page.screenshot({path:`test-results/simple-results-${browserName}.png`});
   await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {configurable:true,value:{writeText:async (text:string)=>{(window as unknown as {copiedResults:string}).copiedResults=text;}}}));
   await page.locator('.simple-result').getByRole('button',{name:'Copy share link',exact:true}).click();
@@ -37,9 +37,9 @@ test('simple defaults, personalized Tuesday and breaks total forty hours', async
   await page.getByRole('button', {name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
-  await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('40:00');
+  await expect(page.locator('.simple-result .report-hours .report-total td:first-of-type')).toHaveText('40:00');
   await page.reload();
-  await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('40:00');
+  await expect(page.locator('.simple-result .report-hours .report-total td:first-of-type')).toHaveText('40:00');
 });
 
 test('daily time source ignores default edits after expansion', async ({ page }) => {
@@ -52,7 +52,7 @@ test('daily time source ignores default edits after expansion', async ({ page })
   const ends=page.locator('input[data-time="end"]:not([data-date=""])');
   await starts.nth(1).fill('9:00');
   await ends.nth(1).fill('5:30');
-  await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('7:00');
+  await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toBeHidden();
   await expect(starts.nth(0)).toHaveValue('8:00');
   await expect(starts.nth(1)).toHaveValue('9:00');
   await expect(ends.nth(1)).toHaveValue('5:30');
@@ -60,13 +60,12 @@ test('daily time source ignores default edits after expansion', async ({ page })
   await page.getByText('Does your break vary by day? Click here to expand and customize',{exact:true}).click();
   const breaks=page.locator('input[data-break]:not([data-break=""])');
   await breaks.nth(1).fill('60');
-  await page.locator('[data-break-preset][value="30"]').check();
-  await page.getByText('Does your break vary by day? Click here to expand and customize',{exact:true}).click();
-  await expect(breaks.nth(0)).toHaveValue('30');
+  await expect(page.locator('[data-break-preset][value="30"]')).toBeHidden();
+  await expect(breaks.nth(0)).toHaveValue('0');
   await expect(breaks.nth(1)).toHaveValue('60');
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
-  await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('39:30');
+  await expect(page.locator('.simple-result .report-hours .report-total td:first-of-type')).toHaveText('41:30');
 });
 
 test('Sunday overnight is a complete seven and a half hour shift', async ({ page }) => {
@@ -83,9 +82,9 @@ test('Sunday overnight is a complete seven and a half hour shift', async ({ page
   await page.locator('[data-break-preset][value="30"]').check();
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
-  await expect(page.locator('.simple-result .employee-report .summary-table > tbody:not(.pay-summary) > .report-total td:first-of-type')).toHaveText('7:30');
+  await expect(page.locator('.simple-result .report-hours .report-total td:first-of-type')).toHaveText('7:30');
   await expect(page.locator('.simple-result .employee-report tbody:not(.pay-summary) tr').filter({hasText:'Sun'})).toHaveCount(1);
-  await expect(page.locator('.simple-result .employee-report')).toContainText('7.50');
+  await expect(page.locator('.simple-result')).toContainText('7.50');
   const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).entries);
   page.on('dialog',dialog=>dialog.accept());
   await page.getByRole('link',{name:'Want to adjust the details? Click here to open Detailed Calculator',exact:true}).click();
@@ -94,33 +93,20 @@ test('Sunday overnight is a complete seven and a half hour shift', async ({ page
   expect(after).toEqual(before);
 });
 
-test('invalid inputs and no days block progress while close and refresh retain edits', async ({ page }) => {
-  await page.goto('/');
-  const days=page.locator('[data-day]');
-  for(let i=0;i<5;i++) await days.nth(i).locator('..').click();
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(page.locator('#simple-errors')).toContainText('Select at least one');
-  await days.first().locator('..').click();
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('');
-  await page.getByRole('textbox',{name:'Clock Out',exact:true}).fill('');
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(page.locator('#simple-errors')).not.toBeEmpty();
-  await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('999');
-  await page.getByRole('textbox',{name:'Clock Out',exact:true}).fill('4:30');
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(page.locator('#simple-errors')).not.toBeEmpty();
-  await page.getByRole('button',{name:'Close wizard'}).click();
-  await page.reload();
-  await expect(page.getByRole('dialog')).not.toBeVisible();
-  await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
-  await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toHaveValue('999');
-  await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('8');
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await page.getByRole('radio',{name:'Custom',exact:true}).check();
-  await page.locator('input[data-break=""]').fill('999');
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(page.locator('#simple-errors')).toContainText('break');
+test('invalid inputs disable progress and closing restores confirmed values', async ({page}) => {
+ await page.goto('/');
+ const next=page.getByRole('button',{name:'Continue',exact:true});
+ const days=page.locator('[data-day]');
+ for(let i=0;i<5;i++) await days.nth(i).locator('..').click();
+ await expect(next).toBeDisabled();
+ await days.first().locator('..').click();await next.click();
+ await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('999');
+ await expect(next).toBeDisabled();
+ await page.getByRole('button',{name:'Close wizard'}).click();await page.reload();
+ await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
+ await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toHaveValue('8:00');
+ await next.click();await page.getByRole('radio',{name:'Custom',exact:true}).check();
+ await page.locator('input[data-break=""]').fill('999');await expect(next).toBeDisabled();
 });
 
 test('advanced draft cancellation preserves full data and remains available in Detailed', async ({ page }) => {
@@ -194,12 +180,12 @@ test('Monday personalization keeps inherited defaults across modes', async ({ pa
   await page.getByText('Do your hours vary by day? Click here to expand and customize',{exact:true}).click();
   const starts=page.locator('input[data-time="start"]:not([data-date=""])');
   await starts.first().fill('9:00');
+  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.getByRole('button',{name:'Back',exact:true}).click();
   await page.getByRole('button',{name:'Close wizard'}).click();
   await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
   if(await page.getByRole('dialog',{name:'Which days do you work?'}).isVisible()) await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toHaveValue('8:00');
-  await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('7:00');
-  await page.getByText('Do your hours vary by day? Click here to expand and customize',{exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toBeHidden();
   await expect(starts.first()).toHaveValue('9:00');
   await expect(starts.nth(1)).toHaveValue('8:00');
 });
@@ -227,7 +213,7 @@ test('wizard shows step tiles, background editor, meridiem switches and pay opti
   await expect(page.locator('.simple-result')).toContainText('$800.00');
   expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).settings.rate)).toBe(2000);
   await expect(page.locator('#calculator')).toBeHidden();
-  expect(await page.locator('.simple-result .employee-report').innerHTML()).toBe(await page.locator('#print-report .employee-report').innerHTML());
+  expect(await page.locator('.simple-result .report-hours').innerHTML()).toBe(await page.locator('#print-report .report-hours').innerHTML());
 });
 
 test('invalid hourly rate preserves the recoverable business draft', async ({page}) => {
@@ -238,7 +224,7 @@ test('invalid hourly rate preserves the recoverable business draft', async ({pag
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.locator('[data-simple-rate]').fill('-1');
-  await page.getByRole('button',{name:'Calculate Hours',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Calculate Hours',exact:true})).toBeDisabled();
   await expect(page.getByRole('dialog')).toBeVisible();
   expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).settings.rate)).toBeNull();
   await page.getByRole('button',{name:'Close wizard'}).click();
@@ -255,7 +241,7 @@ test('step two defaults normalize on blur and validate visible editing scope', a
   await expect(start).toHaveValue('8:00');
   await expect(end).toHaveValue('4:30');
   await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+  await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take a lunch or break?');
   await page.getByRole('button',{name:'Back',exact:true}).click();
   await start.fill('800');
   await start.blur();
@@ -278,16 +264,16 @@ test('step two defaults normalize on blur and validate visible editing scope', a
   const custom=page.locator('input[data-time="start"][data-date]:not([data-date=""])').first();
   await custom.fill('999');
   await expect(custom).toHaveAttribute('aria-invalid','true');
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Continue',exact:true})).toBeDisabled();
   await expect(page.getByRole('dialog')).toHaveAccessibleName('What time do you start and finish?');
   await summary.click();
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Continue',exact:true})).toBeDisabled();
   await expect(page.getByRole('dialog')).toHaveAccessibleName('What time do you start and finish?');
   await summary.click();
   await expect(custom).toHaveValue('999');
   await custom.fill('8:00');
   await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+  await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take a lunch or break?');
   await expect(page.getByRole('button',{name:'Work an irregular schedule? Click here to open Detailed Calculator',exact:true})).toBeVisible();
 });
 
@@ -333,7 +319,7 @@ test('fourth step preserves formal overtime choices and field selection', async 
     await page.locator('[data-simple-overtime]').selectOption(mode);
     await page.locator('[data-simple-rate]').fill('20');
     await page.getByRole('button',{name:'Calculate Hours',exact:true}).click();
-    await expect(page.locator('.simple-result .employee-report')).toContainText('15:00');
+    await expect(page.locator('.simple-result')).toContainText('15:00');
     const current=await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!));
     const {getReport}=await import('../../src/state/card');
     const report=getReport(current);
@@ -361,18 +347,18 @@ test('named Sunday night report shares and exports its complete shift', async ({
   }
   for(let i=0;i<3;i++) await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'Calculate Hours',exact:true}).click();
-  await expect(page.locator('.simple-result .employee-report')).toContainText('Night worker');
-  await expect(page.locator('.simple-result .employee-report')).toContainText('7:30');
-  await expect(page.locator('.simple-result .employee-report')).toContainText('$150.00');
+  await expect(page.locator('.simple-result')).toContainText('Night worker');
+  await expect(page.locator('.simple-result')).toContainText('7:30');
+  await expect(page.locator('.simple-result')).toContainText('$150.00');
   await page.locator('.simple-result').getByRole('button',{name:'Copy share link',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>(window as unknown as {copied:string}).copied)).toContain('#report=');
   const url=await page.evaluate(()=>(window as unknown as {copied:string}).copied);
   expect(url).toContain('reportMode=simple');expect(url).toContain('#report=');
   const fresh=await context.newPage();await fresh.goto(url);
-  await expect(fresh.locator('#readonly-report .employee-report')).toContainText('Night worker');
-  await expect(fresh.locator('#readonly-report .employee-report')).toContainText('7:30');
-  await expect(fresh.locator('#readonly-report .employee-report')).toContainText('$150.00');
-  expect(await page.locator('.simple-result .employee-report').evaluateAll(elements=>elements.map(element=>element.outerHTML))).toEqual(await fresh.locator('#readonly-report .employee-report').evaluateAll(elements=>elements.map(element=>element.outerHTML))); 
+  await expect(fresh.locator('#readonly-report')).toContainText('Night worker');
+  await expect(fresh.locator('#readonly-report')).toContainText('7:30');
+  await expect(fresh.locator('#readonly-report')).toContainText('$150.00');
+  expect(await page.locator('.simple-result .report-hours').innerHTML()).toEqual(await fresh.locator('#readonly-report .report-hours').innerHTML());
   const reportStyles=(cells:Element[])=>cells.map(cell=>{const style=getComputedStyle(cell);return [style.backgroundColor,style.fontWeight,style.borderTopWidth];});
   const localStyles=await page.locator('.simple-result .pay-summary td').evaluateAll(reportStyles);
   const sharedStyles=await fresh.locator('#readonly-report .pay-summary td').evaluateAll(reportStyles);
@@ -419,7 +405,7 @@ test('optional wizard fields, date range, mobile overtime and copied checkmark',
   await page.goto('/');
   for(let step=1;step<4;step++) await page.getByRole('button',{name:'Continue',exact:true}).click();
   const wizard=page.locator('#simple-wizard');
-  await expect(wizard.getByRole('heading',{name:'Add some optional information?'})).toBeVisible();
+  await expect(wizard.locator('.dialog-title')).toBeVisible();
   await expect(wizard.locator('.optional')).toHaveCount(4);
   const overtime=wizard.locator('[data-simple-overtime]');
   await expect(overtime).toHaveValue('none');
@@ -447,7 +433,7 @@ test('optional wizard fields, date range, mobile overtime and copied checkmark',
   await expect(result.locator('.report-identity')).toContainText('Alex');
   await expect(result.locator('.readonly-time-card caption')).toHaveText('Time Card');
   await expect(result.locator('.report-card-heading')).toHaveCount(0);
-  await expect(result.locator('.report-billing-settings input')).toHaveCount(2);
+  await expect(result.locator('.report-billing-settings input')).toHaveCount(1);
   expect(await result.locator('.report-billing-settings input').evaluateAll(inputs => inputs.every(input => (input as HTMLInputElement).readOnly))).toBe(true);
   expect(await result.locator('.report-identity').evaluate(element => parseFloat(getComputedStyle(element).borderTopLeftRadius))).toBeGreaterThan(0);
   const identityBox = (await result.locator('.report-identity').boundingBox())!;
@@ -456,7 +442,7 @@ test('optional wizard fields, date range, mobile overtime and copied checkmark',
   await expect(result.locator('.report-identity')).toContainText('2026-12-14 – 2026-12-20');
   await expect(result.locator('.readonly-time-card')).toContainText('2026-12-14');
   const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('time-card-v1')!));
-  expect(draft.entries.every((entry:{row:string;actualDate:string})=>entry.row===entry.actualDate)).toBe(true);
+  expect(draft.entries.some((entry:{row:string})=>entry.row==='2026-12-14')).toBe(true);
   await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{}}}));
   const share=result.locator('[data-simple-action="share"]');
   await share.click();
@@ -484,25 +470,23 @@ test('opened daily times stay authoritative after collapse and ignore invalid de
  await page.locator('[data-custom-times] summary').click();
  await page.locator('[data-time="end"][data-date]:not([data-date=""])').last().fill('6:00');
  await page.locator('[data-custom-times] summary').click();
- await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('999');
+ await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toBeHidden();
  await page.getByRole('button',{name:'Continue',exact:true}).click();
- await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+ await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take a lunch or break?');
  await page.locator('[data-break-preset][value="30"]').check();
  await page.getByRole('button',{name:'Continue',exact:true}).click();
  await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
  await expect(page.locator('.simple-result .report-total').first()).toContainText('41:30');
 });
 
-test('opening unchanged daily times remains selected after close and refresh', async ({page}) => {
- await page.goto('/'); await page.getByRole('button',{name:'Continue',exact:true}).click();
+test('opening unchanged daily times resets to regular mode after close and refresh', async ({page}) => {
+ await page.goto('/');await page.getByRole('button',{name:'Continue',exact:true}).click();
  await page.locator('[data-custom-times] summary').click();
- await page.locator('[data-custom-times] summary').click();
- await page.getByRole('button',{name:'Close wizard'}).click();
- await page.reload();
+ await page.getByRole('button',{name:'Close wizard'}).click();await page.reload();
  await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
+ await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toBeVisible();
  await page.getByRole('textbox',{name:'Clock In',exact:true}).fill('999');
- await page.getByRole('button',{name:'Continue',exact:true}).click();
- await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+ await expect(page.getByRole('button',{name:'Continue',exact:true})).toBeDisabled();
 });
 
 test('legacy hidden incomplete daily times cannot block unexpanded defaults', async ({page}) => {
@@ -524,11 +508,93 @@ test('legacy hidden incomplete daily times cannot block unexpanded defaults', as
  await expect(page.getByRole('textbox',{name:'Clock In',exact:true})).toHaveValue('8:00');
  await expect(page.getByRole('textbox',{name:'Clock Out',exact:true})).toHaveValue('4:30');
  await page.getByRole('button',{name:'Continue',exact:true}).click();
- await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take an unpaid break?');
+ await expect(page.getByRole('dialog')).toHaveAccessibleName('Do you take a lunch or break?');
  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!));
  expect(stored.entries.map((entry:{start:{value:number};end:{value:number}})=>[entry.start.value,entry.end.value])).toEqual([[480,990],[480,990],[480,990],[480,990],[480,990]]);
  await page.locator('[data-break-preset][value="30"]').check();
  await page.getByRole('button',{name:'Continue',exact:true}).click();
  await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
  await expect(page.locator('.simple-result .report-total').first()).toContainText('40:00');
+});
+
+test('Report confirmed wizard values survive close and discard unsubmitted edits', async ({page}) => {
+ await page.goto('/');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('textbox',{name:'Clock Out',exact:true}).fill('5:00');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Back',exact:true}).click();
+ await page.getByRole('textbox',{name:'Clock Out',exact:true}).fill('6:00');
+ await page.getByRole('button',{name:'Close wizard'}).click();
+ await page.reload();
+ await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
+ await expect(page.getByRole('textbox',{name:'Clock Out',exact:true})).toHaveValue('5:00');
+ await page.getByRole('textbox',{name:'Clock Out',exact:true}).fill('999');
+ await expect(page.getByRole('button',{name:'Continue',exact:true})).toBeDisabled();
+});
+
+test('Report cleared Period hides dates and keeps shared hours', async ({page}) => {
+ await page.goto('/');
+ for(let i=0;i<3;i++) await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Clear period',exact:true}).click();
+ await page.getByRole('button',{name:'Calculate Hours',exact:true}).click();
+ const result=page.locator('.simple-result');
+ await expect(result.locator('.report-hours')).toContainText('42:30');
+ await expect(result.locator('.report-hours')).not.toContainText(/\d{4}-\d{2}-\d{2}/);
+ await expect(result.locator('.report-identity')).not.toContainText('Period');
+ await page.screenshot({path:test.info().outputPath('Report-cleared-period.png'),fullPage:true});
+});
+
+test('Report new week copies weekday times and preserves previous and existing days', async ({page}) => {
+ const {createCard}=await import('../../src/state/card');
+ const {createSimpleMeta,setSimpleDefault,setSimpleDayTime,selectSimpleDay}=await import('../../src/state/simple');
+ const card=createCard('2026-11-09');const meta=createSimpleMeta(card,true);
+ setSimpleDefault(card,meta,'start','8','AM');setSimpleDefault(card,meta,'end','4:30','PM');
+ setSimpleDayTime(card,meta,'2026-11-13','end','6','PM');
+ selectSimpleDay(card,'2026-11-20',true,meta);setSimpleDayTime(card,meta,'2026-11-20','end','5','PM');
+ await page.addInitScript(card=>localStorage.setItem('time-card-v1',JSON.stringify(card)),card);
+ await page.goto('/');
+ await page.getByRole('link',{name:'Want to fill in quickly? Click here to open the wizard',exact:true}).click();
+ for(let i=0;i<3;i++) await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.getByRole('button',{name:'Choose period dates'}).click();
+ await page.locator('#range-start').fill('2026-11-16');await page.locator('#range-end').fill('2026-11-22');await page.locator('#apply-dates').click();
+ await page.getByRole('button',{name:'Calculate Hours',exact:true}).click();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!));
+ expect(saved.entries.find((e:{row:string})=>e.row==='2026-11-13').end.value).toBe(1080);
+ expect(saved.entries.find((e:{row:string})=>e.row==='2026-11-20').end.value).toBe(1020);
+ expect(saved.entries.find((e:{row:string})=>e.row==='2026-11-16').end.value).toBe(990);
+ await expect(page.locator('.simple-result .report-hours')).toContainText('43:00');
+});
+
+test('Report daily tables fit mobile and blank break disables Continue', async ({page}) => {
+ await page.setViewportSize({width:320,height:720});await page.goto('/');
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.locator('[data-custom-times] summary').click();
+ await expect(page.locator('[data-custom-times] table')).toBeVisible();
+ expect(await page.locator('#simple-wizard').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+ await page.screenshot({path:test.info().outputPath('Report-daily-times-mobile.png')});
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
+ await page.locator('[data-custom-breaks] summary').click();
+ await expect(page.locator('[data-custom-breaks] input[data-time]')).toHaveCount(0);
+ await page.locator('[data-custom-breaks] input[data-break]').first().fill('');
+ await expect(page.getByRole('button',{name:'Continue',exact:true})).toBeDisabled();
+ await page.screenshot({path:test.info().outputPath('Report-daily-breaks-mobile.png')});
+});
+
+test('Report snapshot adoption and local draft choice preserve explicit ownership', async ({page}) => {
+ const {createCard}=await import('../../src/state/card');
+ const {encodeShare}=await import('../../src/io/delivery');
+ const local=createCard('2026-11-09');local.name='Local worker';
+ const shared=createCard('2026-11-09');shared.name='Shared worker';
+ const hash=await encodeShare(shared,'report');
+ await page.addInitScript(card=>localStorage.setItem('time-card-v1',JSON.stringify(card)),local);
+ await page.goto('/#'+hash);
+ await expect(page.locator('#readonly-report')).toContainText('Shared worker');
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).name)).toBe('Local worker');
+ await page.getByRole('button',{name:'Keep local draft',exact:true}).click();
+ await expect(page.locator('#readonly-view')).toBeHidden();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).name)).toBe('Local worker');
+ await page.goto('/#'+hash);
+ await page.getByRole('button',{name:'Adopt this time card',exact:true}).click();
+ await expect(page.locator('#readonly-view')).toBeHidden();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).name)).toBe('Shared worker');
 });

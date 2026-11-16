@@ -34,6 +34,7 @@ export function summaryReport(card: Card, combined = false, simple = false, hist
   const rows = Array.from({ length: r.range.end - r.range.start }, (_, index) => {
     const day = r.range.start + index;
     const minutes = r.rows.filter((row) => row.date === dateString(day)).reduce((sum, row) => sum + row.minutes, 0);
+    if (!minutes) return "";
     return `<tr><th colspan="2" scope="row">${weekday(day)}<time class="report-date" datetime="${dateString(day)}">${dateString(day)}</time></th><td colspan="2">${hhmm(minutes)}</td><td colspan="2">${decimal(minutes, card.settings.round)}</td>${hasContent ? `<td class="report-content">${escape(card.content?.[dateString(day)] ?? "")}</td>` : ""}</tr>`;
   }).join("");
   return `<table class="summary-table report-hours"><caption>Hours</caption><colgroup><col class="formula-label"><col><col class="formula-symbol"><col><col class="formula-symbol"><col>${hasContent ? '<col class="content-column">' : ""}</colgroup>
@@ -48,7 +49,7 @@ function overtimeRule(card: Card) {
 
 function readonlyBillingSettings(card: Card) {
   const rate = card.settings.rate === null ? '' : String(card.settings.rate / 100);
-  return `<div class="rate-settings report-billing-settings"><label><span class="field-label">Hourly rate</span><span class="rate-input"><span class="rate-currency">${escape(new Intl.NumberFormat('en-US', {style:'currency',currency:card.currency}).formatToParts(0).find(part=>part.type==='currency')!.value)}</span><input aria-label="Hourly rate" value="${escape(rate)}" readonly></span></label><label><span class="field-label">Overtime rule</span><input aria-label="Overtime rule" value="${escape(overtimeRule(card))}" readonly></label></div>`;
+  return `<div class="rate-settings report-billing-settings">${card.settings.rate === null ? "" : `<label><span class="field-label">Hourly rate</span><span class="rate-input"><span class="rate-currency">${escape(new Intl.NumberFormat('en-US', {style:'currency',currency:card.currency}).formatToParts(0).find(part=>part.type==='currency')!.value)}</span><input aria-label="Hourly rate" value="${escape(rate)}" readonly></span></label>`}<label><span class="field-label">Overtime rule</span><input aria-label="Overtime rule" value="${escape(overtimeRule(card))}" readonly></label></div>`;
 }
 
 function regularWages(r: Pick<ReturnType<typeof getReport>, "pay" | "billing" | "rate" | "regular">) {
@@ -65,41 +66,51 @@ function paySummary(card: Card, r: Pick<ReturnType<typeof getReport>, "pay" | "b
       <tr><th></th><th scope="col">REG</th><th class="operator">+</th><th scope="col">OT</th><th class="operator">=</th><th scope="col"${totalSpan}>Total</th></tr>
       <tr><th scope="row">hh:mm</th><td>${hhmm(r.regular)}</td><td class="operator">+</td><td>${hhmm(r.overtime + r.double)}</td><td class="operator">=</td><td${totalSpan}>${hhmm(r.total)}</td></tr>
       <tr><th scope="row">Decimal</th><td>${decimal(r.regular, card.settings.round)}</td><td class="operator">+</td><td>${decimal(r.overtime + r.double, card.settings.round)}</td><td class="operator">=</td><td${totalSpan}>${decimal(r.total, card.settings.round)}</td></tr>
-      <tr><th scope="row">Rate/Hr</th><td>${amount(r.rate)}</td><td></td><td>${amount(r.rate === null || r.billing !== "hourly" || card.settings.overtime === false ? null : Math.round(r.rate * (card.settings.mode === "ca" ? 1.5 : card.settings.multiplier)))}${card.settings.mode === "ca" && card.settings.overtime !== false ? ` / ${amount(r.rate === null ? null : r.rate * 2)}` : ""}</td><td></td><td${totalSpan}></td></tr>
-      <tr class="report-total"><th scope="row">Gross pay</th><td>${amount(regularPay)}</td><td class="operator">+</td><td>${amount(premiumPay)}</td><td class="operator">=</td><td${totalSpan}>${amount(r.pay)}</td></tr>
-    </tbody>`;
+      ${r.pay === null ? "" : `<tr><th scope="row">Rate/Hr</th><td>${amount(r.rate)}</td><td></td><td>${amount(r.rate === null || r.billing !== "hourly" || card.settings.overtime === false ? null : Math.round(r.rate * (card.settings.mode === "ca" ? 1.5 : card.settings.multiplier)))}${card.settings.mode === "ca" && card.settings.overtime !== false ? ` / ${amount(r.rate === null ? null : r.rate * 2)}` : ""}</td><td></td><td${totalSpan}></td></tr>
+      <tr class="report-total"><th scope="row">Gross pay</th><td>${amount(regularPay)}</td><td class="operator">+</td><td>${amount(premiumPay)}</td><td class="operator">=</td><td${totalSpan}>${amount(r.pay)}</td></tr>`}
+    </tbody>${r.pay === null ? `<caption>Hourly rate not set</caption>` : ""}`;
 }
 
-export function tableReport(card: Card, resultOnly = false, simple = false) {
-  if (resultOnly) {
+export function tableReport(card: Card, _resultOnly = false, simple = false) {
     const all = getTableReport(card);
-    const sections = all.employees.map(({ card: employee, report }, index) => {
-      const name = employee.name || (all.employees.length > 1 ? `Worker ${index + 1}` : "");
-      const details = [employee.client, employee.project].filter(Boolean).join(" · ");
-      const errors = reportForMode(employee, simple).errors;
-      return `<section class="employee-report"><table class="summary-table report-identity"><tbody>${name ? `<tr><th scope="row">Name</th><td>${escape(name)}</td></tr>` : ""}${employee.anchor ? `<tr><th scope="row">Period</th><td>${dateString(report.range.start)} – ${dateString(report.range.end - 1)}</td></tr>` : ""}</tbody></table>${details ? `<p>${escape(details)}</p>` : ""}${timeCardDetails(employee)}${summaryReport(employee, false, simple, true)}<ul>${errors.map(error => `<li>${escape(error)}</li>`).join("")}</ul></section>`;
+    const employees = all.employees.map(({card: employee}) => ({card: employee, report: reportForMode(employee, simple)}));
+    const totals = {...employees[0].report};
+    for (const key of ["total", "regular", "overtime", "double"] as const)
+      totals[key] = employees.reduce((sum, item) => sum + item.report[key], 0);
+    totals.pay = employees.some(item => item.report.pay === null) ? null : employees.reduce((sum, item) => sum + item.report.pay!, 0);
+    const sections = employees.map(({card: employee, report}) => {
+      const identity = [["Name", employee.name], ["Period", !employee.hidePeriod && employee.anchor ? `${dateString(report.range.start)} – ${dateString(report.range.end - 1)}` : ""], ["Client", employee.client], ["Project", employee.project]];
+      return `<section class="employee-report"><table class="summary-table report-identity"><tbody>${identity.filter(([,value]) => value).map(([label,value]) => `<tr><th scope="row">${label}</th><td>${escape(value)}</td></tr>`).join("")}</tbody></table>${timeCardDetails(employee, simple)}<ul>${report.errors.map(error => `<li>${escape(error)}</li>`).join("")}</ul></section>`;
     }).join("");
-    return `<h2 class="print-title">Time Card Calculator</h2>${sections}${all.employees.length > 1 ? `<p>Table total ${hhmm(all.total)} · ${money(all.pay, card.currency)}</p>` : ""}`;
-  }
-  const cards = timeCardDetails(card);
-  return `<h2 class="print-title">Time Card Calculator</h2><h2 class="report-title">Time cards</h2>${cards}${summaryReport(card, true, simple)}`;
+    const dates = [...new Set(employees.flatMap(item => item.report.rows.map(row => row.date)))].sort();
+    const hours = `<table class="summary-table report-hours"><caption>Hours</caption><colgroup><col class="formula-label"><col><col class="formula-symbol"><col><col class="formula-symbol"><col></colgroup><thead><tr><th colspan="2">Day</th><th colspan="2">hh:mm</th><th colspan="2">Decimal</th></tr></thead><tbody>${dates.map(date => {
+      const minutes = employees.reduce((sum,item) => sum + item.report.rows.filter(row => row.date === date).reduce((n,row) => n + row.minutes,0),0);
+      const day = new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US',{weekday:'short',timeZone:'UTC'});
+      return minutes ? `<tr><th colspan="2">${day}${card.hidePeriod ? "" : `<time class="report-date">${date}</time>`}</th><td colspan="2">${hhmm(minutes)}</td><td colspan="2">${decimal(minutes,card.settings.round)}</td></tr>` : "";
+    }).join("")}<tr class="report-total"><th colspan="2">Total</th><td colspan="2">${hhmm(totals.total)}</td><td colspan="2">${decimal(totals.total,card.settings.round)}</td></tr></tbody></table>`;
+    const billing = employees.filter((item,index) => employees.findIndex(other => other.report.rate === item.report.rate && overtimeRule(other.card) === overtimeRule(item.card)) === index).map(item => readonlyBillingSettings(item.card)).join("");
+    totals.rate = employees.every(item => item.report.rate === totals.rate) ? totals.rate : null;
+    return `<h2 class="print-title">Time Card Calculator</h2>${sections}${hours}${billing}<table class="summary-table">${paySummary(card, totals, false, true, totals.pay === null ? null : employees.reduce((sum,item) => sum + regularWages(item.report)!,0))}</table>`;
 }
 
-function timeCardDetails(card: Card) {
-  return getTableReport(card).employees.map(({ card: employee, report }, index) => {
+function timeCardDetails(card: Card, simple = false) {
+  return getTableReport(card).employees.map(({ card: employee }, index) => {
+    const report = reportForMode(employee, simple);
     const time = (field: typeof employee.entries[number]["start"]) => field.value === null
       ? escape(field.raw || "—")
       : `${displayTime(field.value, employee)}${employee.format === "12" && employee.showAmPm ? ` ${field.ampm}` : ""}`;
-    const rows = employee.entries.filter(entry => entry.row >= dateString(report.range.start) && entry.row < dateString(report.range.end))
-      .map(source => {
+    const entries = employee.entries.filter(entry => entry.row >= dateString(report.range.start) && entry.row < dateString(report.range.end) && report.rows.some(row => row.date === entry.row && row.minutes > 0));
+    const hasBreak = entries.some(entry => entry.breaks.length > 0 || (entry.dailyBreakMinutes ?? 0) > 0) || employee.settings.auto;
+    const hasContent = entries.some(entry => employee.content?.[entry.row]?.trim());
+    const rows = entries.map(source => {
         const entry = structuredClone(source);
         for (const field of [entry.start, entry.end, ...entry.breaks.flatMap(rest => [rest.start, rest.end])]) commitField(employee, entry, field);
         const explicitMinutes = entry.breaks.reduce((sum, rest) => sum + (rest.start.value === null || rest.end.value === null ? 0 : (rest.end.value - rest.start.value + 1440) % 1440), 0);
         const automaticMinutes = employee.entries.find(e => e.row === entry.row)?.id === entry.id ? report.rows.filter(row => row.date === entry.row).reduce((sum, row) => sum + row.automaticDeduction, 0) : 0;
         const breakMinutes = explicitMinutes + (employee.settings.auto ? automaticMinutes : entry.breaks.length ? 0 : entry.dailyBreakMinutes ?? 0);
         const breaks = `${breakMinutes} min`;
-        return `<tr><th scope="row">${escape(entry.row)}</th><td>${time(entry.start)}</td><td>${time(entry.end)}</td><td>${breaks}</td></tr>`;
+        return `<tr><th scope="row">${new Date(`${entry.row}T12:00:00Z`).toLocaleDateString("en-US",{weekday:"short",timeZone:"UTC"})}${employee.hidePeriod ? "" : ` ${escape(entry.row)}`}</th><td>${time(entry.start)}</td><td>${time(entry.end)}</td>${hasBreak ? `<td>${breaks}</td>` : ""}${hasContent ? `<td class="report-content">${escape(employee.content?.[entry.row] ?? "")}</td>` : ""}</tr>`;
       }).join("");
-    return `<section class="report-card readonly-time-card"><table class="summary-table"><caption>Time Card</caption><thead><tr><th scope="col">Day</th><th scope="col">In</th><th scope="col">Out</th><th scope="col">Break</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+    return `<section class="report-card readonly-time-card"><table class="summary-table"><caption>Time Card</caption><thead><tr><th scope="col">Day</th><th scope="col">In</th><th scope="col">Out</th>${hasBreak ? '<th scope="col">Break</th>' : ""}${hasContent ? '<th scope="col">Content</th>' : ""}</tr></thead><tbody>${rows}</tbody></table></section>`;
   }).join("");
 }

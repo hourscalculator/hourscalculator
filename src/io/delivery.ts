@@ -13,6 +13,7 @@ export const STORAGE_KEY = "time-card-v1";
 export function decodeCard(text: string): Card {
   if (text.length > 1000000) throw Error("Time card too large");
   const parsed = JSON.parse(text);
+  if (parsed?.hidePeriod !== undefined && typeof parsed.hidePeriod !== "boolean") throw Error("Invalid period visibility");
   if (parsed?.version === 1)
     Object.assign(parsed, {
       version: 2,

@@ -1,200 +1,93 @@
-# Quick Fill 休息分钟在 Detail 显示
+# Report 与 Quick Fill 需求对齐
 
-状态：自动验证完成，待统一人工验收；全量浏览器套件存在未通过项。
+产品口径与三项任务已获用户执行授权，当前状态为“自动执行完成，待统一人工验收”。需求依据为用户本次六项回复、逐日差异重开场景的补充确认、最新 Quick Fill 预览页说明及相关 PRD。源码对照为 `2b174a3dccae08ae16565caaf6d9af56ef184149`。
+旧计划所列人工验收未完成而结束。原“weekly40”条目仍缺最终验收证据，其终态待核验。
 
-## 目标与范围
+## 任务拆分与实现差异
 
-规模：小型。Quick Fill 只记录每日无薪休息分钟数，Detail 应在对应工作段显示该分钟数，不推断或伪造休息起止时间。保留现有计算语义，不重复扣除。
+整体涉及报告展示、向导提交生命周期和跨周数据，按大型需求拆为三个可独立验收的中型任务。三个执行合同依次执行，允许文件和验收边界分别列于下文。
 
-允许修改：`docs/README.md`、`docs/quick-fill.prd.md`、`docs/detail.prd.md`、`src/ui/app.ts`、`src/styles/main.css`、`tests/e2e/mode-sync.spec.ts`、本计划。Quick Fill 输入、数据模型、计算公式及 Report 输出不改；保留工作区已有改动。
-
-## 复用与验收
-
-沿用 `renderDays()` 的 Detail 展示入口和 `dailyBreakMinutes` 状态；通过现有 Simple → Calculate → Detailed 路径验证，不新增映射状态或时间推断。Report 继续使用现有计算结果。
-
-| 检查 | 通过标准 | 验证 |
+| 顺序 | 当前实现与目标差异 | 交付边界 |
 | --- | --- | --- |
-| 分钟数传递 | Quick Fill 选30分钟后，Detail 对应日期显示 `Unpaid break: 30 min`，不生成起止时间输入 | Playwright |
-| 计算 | 同一数据进入 Detail 前后净工时不变，休息仅扣一次 | Playwright |
-| 零休息 | 0分钟不显示休息摘要 | Playwright |
-| 显式时段 | 用户在 Detail 输入具体休息后，摘要不再表示一条仍生效的分钟扣除 | Playwright |
+| 一，共用 Report 与预览 | 每卡重复 Hours、费率、工资。Break 固定显示，Content 位于 Hours，零工时日期和空费率占位行仍显示 | 各卡信息与明细依次展示，随后统一 Hours、计费口径和公式总计。Quick Fill 预览及分享、打印使用同一主体 |
+| 二，Quick Fill 交互与提交 | 逐日设置可折叠，输入立即改写并保存 Card，Continue 主要在点击后拦截错误 | 本次弹窗内单向切入逐日表格，休息表中 In/Out 只读。有效 Continue/Calculate 提交，Back 暂存，关闭及刷新恢复已确认值。Detailed 接收已确认数据 |
+| 三，Period 与历史周 | 日期选择平移并过滤记录，Period 必填，Simple 校验和写入遍历全部 entries | Period 可清空，按当前周计算并隐藏报告中的 Period 与具体日期。新周按上一周对应星期复制上下班，保留旧周，目标周已有记录优先 |
 
-先在现有 `tests/e2e/mode-sync.spec.ts` 扩展真实模式切换用例并确认 RED，再最小修改 Detail 渲染。最终运行目标 Playwright 用例、`npm run typecheck`、`npm run test:unit`、`npm run test:e2e`、`git diff --check`。浏览器自动验证不替代统一人工验收。
+任务二复用 `mountSimple()`、`createSimpleMeta()`、现有时间/休息 setter、`setFieldError()` 和 Detail 输入样式。临时输入归本次弹窗所有，已确认 Card 为持久化依据。初访默认值、兼容 Detail 回读、复杂数据确认及 Clear 进入其验收。
+任务二按已确认记录推导重开后的初始模式。已确认时间或休息有逐日差异时恢复对应逐日表格。验收操作为周五18:00、其余16:30并 Continue，关闭重开及刷新重开后均恢复逐日表格，周五保持18:00。仅切换模式产生的临时状态随本次弹窗结束。
+任务三复用日期选择窗口、`cardPeriod()`、按实际日期保存的 `entries/content/emptyRows` 和现有编解码入口。切周同时核对 `simpleCompatible()`、`simpleReport()`、默认值和逐日 setter 的当前范围，避免历史周参与当前填写或被批量覆盖。单周复制只带上下班时间，其余数据按目标周记录和既定默认规则恢复。双周及自定义范围沿用日期选择能力，复制规则以标准单周为适用范围。
+后续任务进入执行前分别形成当前合同并完成主 agent 计划自查。授权覆盖整组任务时按上述顺序衔接。
 
-## 最终验证
+## 已确认的产品口径
 
-构建、类型检查、单元测试及 Quick Fill → Detail 浏览器用例通过。全量浏览器套件 176 项通过、58 项失败、3 项跳过；失败集中在既有日期/工作段定位冲突、测试域名断言不匹配及进入 Detail 前的向导用例超时。人工验收未执行，待统一验收。
+- Calculate 后为预览页，顶部链接进入 Detailed，中部按 Report 的表格顺序展示，底部提供 Print/PDF、Export CSV、Copy share link。操作复用 Detail 的交付入口，复制成功显示绿圈白勾。
+- 当前步骤的临时输入可随 Back 往返恢复。关闭、Escape 或刷新后保留当前步骤位置，恢复各步骤最近一次 Continue 确认的值。尚未提交的步骤使用进入该步时的已确认数据或默认值。第4步由 Calculate 确认。
+- 逐日模式的单向限制属于本次弹窗。重开时根据已确认记录恢复模式，存在逐日差异时显示逐日表格并保留差异。进入 Detailed 时接收已点 Continue 的数据。
+- Period 清空后内部仍有当前周的计算日期，报告省略 Period 和具体日期，星期仍作为每日标识。该显示状态需随草稿与分享快照保存，旧数据缺少该状态时按原日期展示。
+- 零净工时日期省略。时薪留空时省略 Hourly rate、Rate/Hr 和 Gross pay，保留工时与简短的未设置时薪提示。零时薪作为已填写值处理。
+- 每卡独立计算工时及加班，再合并相同日期的净分钟与各卡 REG、OT、双倍工时及金额。Weekly 的40小时门槛按每卡每周应用。
 
----
+## 当前合同一的目标与范围
 
-# 分享快照兼容旧加班设置值
+规模为中型，围绕共用报告生成及其预览、分享、打印消费者集中实现。
+目标布局为各卡的有值身份信息表与 Time Card 明细表，随后一份全卡 Hours、一份有值计费口径表、一份 Weekly/Period Totals。Project 和 Client 有值时进入对应身份信息行。Content 进入所属卡、所属日期的明细列。Break 列按每卡有效休息数据决定显示。
+公式表使用现有 REG + OT = Total 展示。加班关闭和未设置时薪按已确认空值规则渲染。多段工作与有薪/无薪休息应可核对。
 
-状态：执行中。
+计划阶段写入范围为 `plan.md`。合同一执行范围如下。
 
-## 目标与范围
+- 产品与入口文件为 `docs/report.prd.md`、`index.html`、`src/ui/report.ts`、`src/ui/simple.ts`、`src/ui/app.ts`、`src/styles/main.css`、`src/styles/print.css`。
+- 测试文件为 `tests/state/simple.test.ts`、`tests/e2e/simple.spec.ts`、`tests/e2e/delivery.spec.ts`、`tests/e2e/share-actions.spec.ts`、`tests/e2e/workflows.spec.ts`、`tests/e2e/content.spec.ts`、`tests/e2e/mode-sync.spec.ts`、`tests/e2e/personas.spec.ts`、`tests/e2e/date-range.spec.ts`、`tests/e2e/table-layout.spec.ts`、`tests/e2e/helpers.ts` 和本计划。既有测试的修改限于本合同布局和动作的直接依赖。
+- 向导步骤与保存生命周期属于任务二。日期清空、历史周与相应 Card/解码模型扩展属于任务三。用户已有 docs 与 Obsidian 改动作为工作区基线保留。
 
-规模：小型。用户提供的 `#report=` 快照包含 `settings.mode: "weekly40"`，当前读取边界只接受规范值 `weekly`、`daily`、`ca`，因此显示 `Invalid settings`。修复后把这个历史表示迁移为 `weekly`，并保留原有 `overtime`、费率和其它设置。
+## 权威来源与逐步复用
 
-允许修改：`src/io/delivery.ts`、`tests/e2e/delivery.spec.ts`、本计划。Detail、Quick Fill、计算规则、分享格式及页面文案不改；工作区已有其它改动保留。根计划中尚待执行的卡片锚点合同保持原样。
+1. 复用 `tableReport()`、`timeCardDetails()`、`summaryReport()`、`paySummary()`、`readonlyBillingSettings()` 与 `escape()`，集中整理报告主体和条件字段。Simple 使用 `reportForMode(card, true)` 的整班结果，Detail 使用 `getTableReport()` 的按日历范围结果，各自的 Hours 和总计取自同一模式结果并累加各卡实际分币。先沿用正式 `errors/issues` 校验并阻止错误交付，再过滤有效的零工时日期。
+2. 复用 `mountSimple().renderHome()` 及原三按钮，通过 `onDelivery → runDelivery()` 处理打印、CSV、分享。共用 `updateCopiedState()` 的复制反馈与失效规则。共享主体接入 `previewShare()`、只读审批快照和 `#print-report`。
+3. 复用 `sharePreview`、`adopt/dismiss` 和现有快照编解码，把 PRD 要求的采纳/保留本地草稿入口接入 Report 链接。现有入口位于隐藏的 `#editor` 内，需调整可见容器并在选择后恢复正式编辑视图。
+4. 复用现有 Report 单元测试、真实浏览器入口、CSV 检查及 `verifyDelivery()`，用原始分钟和分币断言结果。旧快照含不同费率时沿用各卡实际费率与原金额，并提供可核对的费率说明。
 
-## 复用与影响
+## 验收矩阵
 
-沿用分享链接 `previewShare()` → `decodeShare()` → `decodeCard()` 路径，在共享数据校验入口做一次旧值规范化。`decodeCard()` 也供本地草稿加载及嵌套员工卡复用；迁移后统一使用现有 `Settings.mode`，避免把 `weekly40` 当成每日加班规则。
-
-## 验收与验证
-
-| 检查 | 通过标准 | 验证 |
+| 功能与输入 | 用户可观察预期 | 证据 |
 | --- | --- | --- |
-| 旧分享快照 | gzip 的 `#report=` 快照含 `weekly40` 时，Report 正常只读显示，无错误 | Playwright |
-| 加班口径 | 单日9小时的周加班快照显示9小时常规工时、0小时加班 | Playwright |
-| 既有行为 | 类型检查、单元测试和全量浏览器测试通过 | npm 脚本 |
+| 单人 Weekly，周一至四08:00–16:30，周五至18:00，各休30分钟，$20/h | 一份 Hours 和总计，41:30 / 41.50，REG40小时/$800、OT1:30/$45，总$845。关闭加班时为$830 | 单元与真实预览/分享/打印/CSV |
+| 三卡同一天各8小时，Daily，$25/h | 三组身份与明细，合并 Hours 当日24:00，REG24小时、OT0，总$600 | 单元与多卡浏览器 |
+| 无 Content、无休息，另有空白日期 | 省略空列和无工时日期。有 Content 或正数休息的卡出现对应列，内容绑定正确卡与日期 | 单元与桌面/手机浏览器 |
+| 无时薪和一天8小时，另测时薪0 | 空时薪显示8:00与简短提示，省略费率和工资行。时薪0显示明确的零费率、零金额 | 单元与浏览器 |
+| 预览顶部链接、三按钮及复制反馈 | 顶部进入 Detailed，底部三动作可用。复制成功显示绿圈白勾，修改数据后恢复待复制状态。复制失败显示可手动复制的链接 | Chromium 剪贴板与拒绝路径 |
+| 页面、分享、打印与CSV | 同一数据各出口净分钟、分类分钟及分币一致。分享主体与打印主体一致。Sunday22:00–06:00休30分钟在 Simple 交付中为7:30 | 真实交付链 |
+| 本地草稿存在时打开 Report 链接，再分别采纳/保留 | 选择前本地草稿原样保存。采纳后采用快照，保留后返回原草稿。损坏链接提示错误且草稿可恢复 | 浏览器及本地存储断言 |
+| 半段、重叠或休息超限记录，以及浏览器拒绝保存 | 错误可定位至卡、日期和字段，保留输入并阻止交付。保存失败时反馈可见，当前页面数据可继续查看 | 真实编辑与交付入口 |
+| 老链接、历史多费率及审批快照 | 原草稿后改不影响老链接。旧卡各8小时、$20与$30合计$400。审批与回执仍关联原快照 | 旧协议用例与浏览器 |
+| 多卡月份与320/375/390px手机 | 卡片身份、明细和汇总完整，文字换行与打印分页可读，公式符号可见 | 浏览器截图与统一人工验收 |
 
-先在 `tests/e2e/delivery.spec.ts` 用真实 gzip 分享协议构造旧枚举快照；每轮先 `npx vite build` 更新预览产物，再运行 `npx playwright test tests/e2e/delivery.spec.ts --project=chromium --grep "legacy weekly40"` 确认 RED/GREEN。随后运行 `npm run typecheck`、`npm run test:unit`、`npm run test:e2e`、`git diff --check`。未做线上部署；自动完成后仍待统一人工验收。
+## 执行步骤与验证命令
 
----
+1. 对齐 Report PRD 的布局、空值和具体操作验收，按功能整理章节，源码索引和执行证据归本计划。为矩阵中的差异补测试并用真实输入确认 RED。
+2. 按上述复用入口最小修改报告主体、预览动作与分享视图，运行对应单元和浏览器用例确认 GREEN，再整理本轮产生的重复逻辑并重跑相关用例。
+3. 集中核对全部直接消费者和允许文件，主 agent 按 checker 做实现自查，采纳适用修正并运行最终验证，交付“自动执行完成，待统一人工验收”状态。
+目标验证使用 `npx vitest run tests/state/simple.test.ts`。浏览器每轮先 `npx vite build` 更新预览产物，再执行 `npx playwright test tests/e2e/delivery.spec.ts tests/e2e/simple.spec.ts tests/e2e/share-actions.spec.ts tests/e2e/workflows.spec.ts --project=chromium --grep "Report|legacy weekly40|result reuses|copies report|monthly employee"`。新增本合同用例名称统一包含 `Report`。
+最终集中运行 `npm run typecheck`、`npm run test:unit`、`npm run build`、`npm run test:seo`、`npm run test:og`、一次 `npm run test:e2e` 和 `git diff --check`。浏览器启动需要本地端口及 Playwright 浏览器权限，遇沙箱端口限制使用执行工具的权限流程。
 
-# 全站页头品牌统一
+## 验证状态与待验收
 
-状态：自动执行完成，待统一人工验收。
+三项任务实现及主 agent 自查修正完成，当前状态为“自动执行完成，待统一人工验收”。
+本轮类型检查、71项单元测试、构建、OG检查及 git diff --check 通过。最终构建的31项 Chromium 直接消费者测试全部通过，另1项 Report 采纳/保留草稿测试通过。
+实际输入覆盖三卡各8小时/$25合计24小时/$600、周五18:00且其余16:30并各休30分钟得到41:30/$845、Sunday22:00–06:00休30分钟得到7:30、关闭丢弃未确认18:00而恢复确认17:00、新周已有周五17:00优先于旧周18:00且旧记录保留、清空Period后隐藏日期并保留42:30工时。
+全量三浏览器测试已运行结束，198通过、45失败、3跳过。失败对应15个现有用例，已在隔离HEAD基线复现同名失败，涉及Detailed空白多工作段夹具与静态canonical预期。SEO检查的biweekly锚点断言在隔离HEAD中同样失败。这些既有问题保留为剩余风险。
+320/375/390px工作日布局、320px逐日表格、390px可选信息及报告、月份打印和跨模式交付已有浏览器证据。最新手机截图位于 `/tmp/hours-mobile-verified`，最终直接消费者trace位于 `/tmp/hours-delivery-final`，完整套件trace位于 `/tmp/hours-complete-e2e`。
+统一人工验收待执行。部分新增测试在实现后补齐，全部阶段的先RED顺序证据未完整保留，不能声称全程严格TDD。
 
-## 范围与口径
+## 当前合同二 — Quick Fill 提交恢复
 
-允许修改 index.html、scripts/seo.mjs、plan.md。复用首页模板及 Vite 的所有派生页面生成入口。Detail、快速填写、Report 无功能影响。
+已授权连续执行，中型任务。允许修改 `src/ui/simple.ts`、`src/state/simple.ts`、`src/styles/main.css`、`tests/state/simple.test.ts`、`tests/e2e/simple.spec.ts`、`docs/quick-fill.prd.md` 和本计划。
+复用 mountSimple、createSimpleMeta、各 setter 和现有交付入口。弹窗独占临时 Card，Continue/Calculate 才替换已确认 Card，Back 保留临时值，关闭恢复确认数据。恢复只保留步骤位置，逐日模式由确认数据推导。
+验收包含输入时草稿不变、Continue 后持久化、关闭及刷新恢复、逐日单向切换、休息表时间只读、无效输入禁用下一步。
+验证使用 `npx vitest run tests/state/simple.test.ts`，构建后 `npx playwright test tests/e2e/simple.spec.ts --project=chromium`，最终集中完整验证。
 
-页头按用户指定结构显示 punch<span>card</span>calculator，href 保持 /，新增 aria-label="Punch Card Calculator"。页头可访问名称、页脚品牌、og:site_name 完全一致。视觉字标按指定的小写连写形式保留，首页 H1 保持 Time Card Calculator。
+## 当前合同三 — Period 与历史周
 
-全站发布 HTML（含可见文案、meta、JSON-LD）不得含旧品牌连续字符串。全仓搜索中 wrangler.jsonc 的 Worker 标识及 docs/README.md 的历史线上参考地址仍是技术配置和历史资料，不进入发布页面，本轮保留。若要求连这些非页面引用也清除，需要确认 Worker 是否迁移，避免改变现有部署目标。
-
-## 阶段与验证
-
-1. 在现有 SEO 检查补充六页页头结构、链接、可访问名称以及旧品牌零命中断言。构建并执行 npm run test:seo，确认旧页头导致 RED。
-2. 只修改共享首页页头，重新 npm run build 与 npm run test:seo，确认 GREEN。检查全部生成 HTML，确保其他派生页面也统一品牌。
-3. npm run typecheck、npm run test:unit、git diff --check，主 agent 自查最终差异。记录真实测试证据，浏览器及人工验收待完成。
-
-## 计划自查
-
-已核对 PRD、共享模板、生成链及 SEO 检查入口。需明确的口径是字标使用指定连写结构，完全一致以可访问名称比较。生产页无旧品牌与保留既有 Worker 标识可以同时满足。无须修改计算、样式或站点元信息生成逻辑。
-
-## 本轮执行证据与实现自查
-
-- RED：新增六页页头结构断言后，构建成功，SEO 检查因旧页头不满足品牌要求失败。
-- GREEN：修改 index.html 共享页头后，npm run build、npm run test:seo、npm run typecheck 均通过；npm run test:unit 共 6 文件 66 项通过；git diff --check 通过。
-- 全部 9 个生成 HTML（含指定六页）检查旧名称零命中，页头结构及可访问名称正确。六页页脚、og:site_name 和首页 H1 的既有断言通过。
-- 主 agent 自查无 A/B 问题，改动仅涉及共享页头、两条 SEO 断言及本计划。复用原有生成链，无样式或计算逻辑修改。浏览器和人工验收未执行，线上部署未执行。
-
----
-
-# 快速修复：暂不收录三页
-
-状态：自动执行完成，待统一人工验收。
-
-## 任务与范围
-
-规模：小型。只调整共享静态页生成逻辑及其 SEO 检查，不改变运行时功能或页面内容。
-
-目标：`/with-breaks/`、`/free/`、`/overtime-calculator/` 的 head 输出 `noindex,follow`，H1 后不再出现同名 H2；当前不进入 sitemap 或任何 Related 区。
-
-允许修改：`vite.config.ts`、`scripts/seo.mjs`、本计划。禁止新增页面级 robots 实现、把三页加入 Related，或更改其他路由内容。工作区已有品牌改动保持不动。
-
-## 实现与复用
-
-三页由 `vite.config.ts` 的同一页面循环生成；复用 `social()` 注入 robots。`TEMPORARY_PAGES_INDEXABLE` 默认 `false`，同一开关控制三页的 robots 值及 sitemap 条目；以后改成 `true` 即会移除 noindex 并加入 sitemap。三页继续不进入 `src/seo/content.ts` 的 `relatedPages()` 列表。只对这三个路径省略生成器中与 H1 同名的 H2。
-
-## 验收与验证
-
-| 检查 | 通过标准 | 方式 |
-| --- | --- | --- |
-| 三页 robots | head 各含唯一 `noindex,follow`，不含 `noindex,nofollow` | SEO 脚本、curl 本地预览 |
-| 标题 | 三页 H1 后没有文字完全相同的 H2 | SEO 脚本 |
-| 站点导航 | robots 为 noindex 时三页不在 sitemap；任何开关状态下 Related 区都没有指向三页的链接 | SEO 脚本 |
-| 响应 | 三条本地预览路由均返回 HTML | curl |
-
-扩展 `scripts/seo.mjs` 检查 robots、标题、sitemap 与所有生成页中的 Related 链接；SEO 检查读取同一个索引开关，核对 robots 和 sitemap 状态。最小修改 `vite.config.ts` 的共享生成入口。验证：`npx vite build`、`npm run test:seo`、`npm run typecheck`、三页本地 `curl` 和 `git diff --check` 均通过；curl 返回 200，三页 head 均为唯一 `noindex,follow`，H1 后没有同名 H2。完整 `npm run build` 在额外的未提交 OG 图片生成步骤启动 Chromium 时因本机权限失败；本次页面构建及 SEO 验收已通过。浏览器和人工验收未执行，待统一人工验收。
-
----
-
-# 快速修复：三张主题内页面包屑
-
-状态：本任务目标验收完成，待统一人工验收；全量 SEO 检查受工作区并发修改影响暂未通过。
-
-## 范围与验收
-
-规模：小型。只修改 `with-lunch`、`biweekly`、`decimal` 三张主题页的静态生成逻辑、对应 SEO 验收和本计划。保留工作区现有其他改动。
-
-三页可见面包屑为 `Home`（链接 `/`）和当前页标题（纯文本）；BreadcrumbList 仅含 `Home` 与当前页两个 ListItem，position 分别为 1、2，当前页 item 指向当前页 URL。
-
-## 阶段与验证
-
-1. 在 `scripts/seo.mjs` 为三页增加 JSON-LD 条目数、名称与 position，以及可见 nav 两段结构断言；执行 `npx vite build` 和 `npm run test:seo`，确认现状触发 RED。
-2. 修改 `vite.config.ts` 的主题页生成入口，复用其现有 `title` 与 `origin/path` 生成两级 breadcrumb；重建并重跑 SEO 检查确认 GREEN。
-3. 运行 `npm run typecheck`、`npm run test:unit`、`git diff --check`，核对三页生成源码与本轮差异。浏览器与人工验收仍待统一验收。
-
-## 本轮执行证据与实现自查
-
-- RED：`npx vite build` 成功；新增 SEO 断言因 `with-lunch` 仍有三个 JSON-LD 条目而失败。
-- GREEN：首次重建后 `npm run test:seo` 通过。最终产物的定向复核也通过：三页 JSON-LD 均仅含 Home 和当前页，position 为 1、2；可见 nav 仅有首页链接和当前页纯文本。
-- `npm run typecheck` 通过；`npm run test:unit` 6 个文件、66 项通过；`git diff --check` 通过。
-- 最终再次运行全量 `npm run test:seo` 时，在本任务面包屑断言通过后，因并发任务修改 `index.html` 将现有首页 `biweekly` 锚点改为 `data-anchor`，触发脚本中既有锚点断言失败。本轮未修改该并发任务的文件或断言。
-- 主 agent 实现自查无 A/B 问题。实现复用主题页静态生成入口与已有 `title`、`origin/path`；不影响其它页面或计算逻辑。浏览器与人工验收未执行，待统一验收。
-
----
-
-# 快速修复：卡片模板锚点唯一性
-
-状态：自动执行完成，待统一人工验收；完整 E2E 套件未完成。
-
-## 任务与范围
-
-规模：小型。只调整一份可复制卡片模板、现有锚点分配逻辑和对应浏览器验收；不改变数据、计算或报告协议。
-
-保留首页首张实际卡片的 `id="lunch"` 与 `id="biweekly"`。模板改为 `data-anchor="lunch"` 与 `data-anchor="biweekly"`，由现有 JS 锚点分配入口设置首卡 id，并确保后续卡片不带这些 id。其他卡片模板及动态生成结构检查后不改无关内容；重复的样式 class 保持用于各卡片排版。
-
-允许修改：`index.html`、`src/ui/app.ts`、`tests/e2e/workflows.spec.ts`、本计划。禁止修改 Simple、Report、输入/数据模型、计算逻辑和无关未提交文件。
-
-## 复用与影响
-
-复用 `src/ui/app.ts` 的 `updateShortcutAnchors()` 与 `renderWorkerCards()` 卡片生命周期；不新增锚点管理状态或第二套克隆路径。复制结构检查范围为 `#worker-card-template` 和 `renderDays()` 动态字段：模板除这两个锚点外没有需按卡复制的 id，动态时间字段使用现有 `data-entry`、`data-field` 标记且不带 id，类名按卡复用样式。影响限于 Detailed 卡片定位；Quick Fill、计算及 Report 无行为影响。
-
-## 验收与验证
-
-| 检查 | 通过标准 | 方式 |
-| --- | --- | --- |
-| 模板 | 两个目标控件只有 `data-anchor`，template.content 内没有 id | Playwright |
-| DOM 唯一性 | 连加两张卡后，`document.querySelectorAll('[id]')` 无重复值 | Playwright |
-| 快捷链接 | 连加两张卡后，shortcuts 每条链接都跳到对应的唯一控件 | Playwright |
-
-先扩展 `tests/e2e/workflows.spec.ts` 使模板无 id 的断言 RED，再最小修改 HTML 与现有 JS 选择器并验证 GREEN。`npx vite build`、`npm run typecheck`、`npm run test:unit`、`git diff --check` 与目标 Playwright 用例在 Chrome、Chromium、WebKit 的验证通过。完整 `npm run test:e2e` 因其他用例失败而中断，剩余测试未运行；测试期间工作区有并行未提交修改，失败归因未隔离。浏览器人工验收待统一完成。
-
----
-
-# Cloudflare 构建移除 Chromium 依赖
-
-状态：自动执行完成，待统一人工验收。
-
-## 目标与范围
-
-规模：小型。Cloudflare 的干净构建只安装 npm 依赖，没有 Playwright 浏览器；生产构建应直接使用已存在的 OG 图片静态资源，不启动 Chromium。
-
-允许修改：`.gitignore`、`package.json`、`public/og-image.png`、本计划。保留现有图片内容、分享元数据、图片生成模板与脚本、Playwright 测试依赖，以及工作区已有改动。Detail、Quick Fill、Report 的产品行为不变。
-
-## 复用与实现
-
-沿用 Vite 默认 `public/` 资源复制到 `dist/` 的路径。现有 `public/og-image.png` 与本地 `dist/og-image.png` 内容相同，但被 `.gitignore` 忽略；将它纳入版本控制并让生产 `build` 只运行 `vite build`。保留 `scripts/test-og-image.mjs` 作为现有图片产物检查，不新增渲染器或浏览器依赖。
-
-## 验收与验证
-
-| 检查 | 通过标准 | 验证 |
-| --- | --- | --- |
-| 无浏览器构建 | Playwright 浏览器路径不存在时，生产构建仍成功 | `PLAYWRIGHT_BROWSERS_PATH=/tmp/cf-no-browser npm run build` |
-| OG 图片产物 | `dist/og-image.png` 为 1200×630 PNG、小于300KB，九个页面均引用它 | `npm run test:og` |
-| 修改边界 | 保留既有计划及未提交改动；差异仅包含本合同允许文件 | `git status --short`、`git diff --check` |
-
-## 最终验证
-
-- `PLAYWRIGHT_BROWSERS_PATH=/tmp/cf-no-browser npm run build` 在无浏览器路径下通过。
-- `npm run test:og` 通过：图片为 1200×630 PNG，小于300KB，九个页面均引用它。
-- `git diff --check` 通过；既有计划内容及工作区修改保留。未部署 Cloudflare。
-
-## 剩余风险
-
-日后修改 OG HTML 模板时，需运行现有生成脚本并更新 `public/og-image.png`；该脚本仍要求安装 Playwright Chromium。
+任务二完成后自动执行，中型任务。允许修改 `src/state/card.ts`、`src/state/simple.ts`、`src/ui/simple.ts`、`src/ui/report.ts`、`src/io/delivery.ts`、`tests/state/simple.test.ts`、`tests/e2e/simple.spec.ts`、`docs/quick-fill.prd.md` 和本计划。
+复用 cardPeriod、simpleDates、日期选择窗口和原快照编解码。日期隐藏使用可选字段，缺失沿用旧展示。切周保留实际日期记录，标准单周按对应星期复制上下班，目标已有记录优先。当前范围隔离适用于兼容判断、默认推导、setter、计算与校验。
+验收包含清空后当前周计算与隐藏日期、分享刷新保留显示状态、上周记录保留、新周逐星期复制、已有目标优先、历史记录不参与本周校验或批量修改。
+验证使用相关单元、构建后 Chromium Quick Fill 测试以及计划中的最终集中命令。

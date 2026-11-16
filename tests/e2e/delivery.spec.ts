@@ -105,8 +105,8 @@ test("populated month prints across multiple pages", async ({
   await page.reload();
   await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("240:00");
   await page.emulateMedia({ media: "print" });
-  await expect(page.locator("#print-report .employee-report > .summary-table:not(.report-identity) > tbody:not(.pay-summary) > tr:not(.report-total)")).toHaveCount(30);
-  await expect(page.locator("#print-report .employee-report > .summary-table:not(.report-identity) > tbody:not(.pay-summary) > .report-total")).toContainText("240:00");
+  await expect(page.locator("#print-report .report-hours > tbody > tr:not(.report-total)")).toHaveCount(30);
+  await expect(page.locator("#print-report .report-hours > tbody > .report-total")).toContainText("240:00");
   await page.screenshot({
     path: `test-results/month-print-${browserName}.png`,
     fullPage: true,

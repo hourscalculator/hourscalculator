@@ -22,6 +22,7 @@ export type Entry = {
   breaks: { id: string; start: Field; end: Field; paid: boolean; automatic?: boolean }[];
 };
 export type Card = {
+  hidePeriod?: boolean;
   visibleFields?: { client: boolean; project: boolean; content: boolean };
   content?: Record<string, string>;
   emptyRows?: string[];

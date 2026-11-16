@@ -1216,12 +1216,14 @@ export async function start() {
               .setAttribute("hidden", "");
             renderWorkerCards();
             persist();
+            await previewShare();
           }
           break;
         case "dismiss":
           sharePreview = null;
           document.querySelector("#share-preview")!.setAttribute("hidden", "");
           history.replaceState(null, "", location.pathname);
+          await previewShare();
           break;
       }
     }
@@ -1290,6 +1292,11 @@ export async function start() {
           readonlyCard = sharePreview;
           document.querySelector<HTMLElement>("#editor")!.hidden = true;
           document.querySelector<HTMLElement>("#readonly-view")!.hidden = false;
+          if (reportOnly) {
+            document.querySelector<HTMLElement>("#share-preview")!.hidden = false;
+            document.querySelector<HTMLButtonElement>("#adopt")!.disabled = false;
+            document.querySelector("#preview-description")!.textContent = "Adopt this snapshot or keep your local draft.";
+          }
           const markup = tableReport(readonlyCard, reportOnly, simpleSharedReport());
           document.querySelector("#readonly-report")!.innerHTML = markup;
           document.querySelector("#print-report")!.innerHTML = markup;

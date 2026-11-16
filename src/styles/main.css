@@ -991,3 +991,13 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
 
 .dialog-title { font-size: 20px; letter-spacing: -0.3px; font-weight: bold; margin-block: .83em; }
 #dlg-receipt { font-size: 1.17em; margin-block: 1em; }
+
+#simple-wizard details .summary-table { width: 100%; table-layout: fixed; }
+#simple-wizard details .summary-table th,
+#simple-wizard details .summary-table td { padding: .35rem; overflow-wrap: anywhere; }
+#simple-wizard details .time-field-heading { display: none; }
+#simple-wizard details input { width: 100%; min-width: 0; }
+#simple-wizard details .time-control { min-width: 0; }
+#simple-wizard details .time-control input { padding-inline: .3rem; }
+#simple-wizard .simple-dialog-heading > div { min-width: 0; flex: 1; }
+#simple-wizard .simple-dialog-heading > button { flex-shrink: 0; }

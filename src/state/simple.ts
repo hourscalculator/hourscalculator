@@ -22,7 +22,8 @@ export function simpleDates(card: Card) {
     return range.dates.filter(date => dayNumber(date) >= range.start && dayNumber(date) < range.end);
 }
 export function simpleCompatible(card: Card) {
-    return card.entries.every(entry => simpleDates(card).includes(entry.row)) && !card.multi && (card.length === '1' || card.length === 'custom') && card.settings.dayStart === 0 && card.settings.weekStart === 1 && card.entries.every(e => e.breaks.every(rest => rest.automatic) && card.entries.filter(other => other.row === e.row).length === 1);
+    const entries = card.entries.filter(entry => simpleDates(card).includes(entry.row) && (entry.start.raw || entry.end.raw || entry.breaks.some(rest => rest.start.raw || rest.end.raw)));
+    return !card.multi && (card.length === '1' || card.length === 'custom') && card.settings.dayStart === 0 && card.settings.weekStart === 1 && entries.every(e => e.breaks.every(rest => rest.automatic) && entries.filter(other => other.row === e.row).length === 1);
 }
 export function simpleBreakMinutes(card: Card, entry: Card['entries'][number]) {
     return card.settings.auto ? card.settings.deduction : entry.dailyBreakMinutes ?? 0;
@@ -31,14 +32,14 @@ export function createSimpleMeta(card: Card, initializeDays = false): SimpleMeta
     if (initializeDays && !card.entries.length)
         for (const date of simpleDates(card).slice(0, 5))
             addEntry(card, date, `simple-${date}`);
-    const active = card.entries.filter(e => e.start.raw || e.end.raw);
+    const active = card.entries.filter(e => simpleDates(card).includes(e.row) && (e.start.raw || e.end.raw));
     const frequency = new Map<string, number>();
     const timeKey = (entry: Card['entries'][number]) => `${entry.start.value}/${entry.end.value}`;
     for (const entry of active) frequency.set(timeKey(entry), (frequency.get(timeKey(entry)) ?? 0) + 1);
     const first = [...active].sort((a,b) => frequency.get(timeKey(b))! - frequency.get(timeKey(a))!)[0];
     return {
         step: 1,
-        dailyTimesSelected: card.entries.every(e => e.start.value !== null && e.end.value !== null && !e.start.dirty && !e.end.dirty) && active.some(e => e.start.value !== first?.start.value || e.end.value !== first?.end.value),
+        dailyTimesSelected: active.every(e => e.start.value !== null && e.end.value !== null && !e.start.dirty && !e.end.dirty) && active.some(e => e.start.value !== first?.start.value || e.end.value !== first?.end.value),
         defaultStart: first ? { raw: first.start.raw, ampm: first.start.ampm } : { raw: '8:00', ampm: 'AM' },
         defaultEnd: first ? { raw: first.end.raw, ampm: first.end.ampm } : { raw: '4:30', ampm: 'PM' },
         defaultBreak: first ? simpleBreakMinutes(card, first) : 0,
@@ -69,7 +70,7 @@ function writeTime(card: Card, date: string, kind: 'start' | 'end', raw: string,
 }
 export function setSimpleDefault(card: Card, meta: SimpleMeta, kind: 'start' | 'end', raw: string, ampm: string) {
     meta[kind === 'start' ? 'defaultStart' : 'defaultEnd'] = { raw, ampm };
-    for (const entry of card.entries)
+    for (const entry of card.entries.filter(entry => simpleDates(card).includes(entry.row)))
         if (!meta.customTimes.includes(entry.row))
             writeTime(card, entry.row, kind, raw, ampm);
 }
@@ -92,11 +93,12 @@ export function setSimpleBreak(card: Card, meta: SimpleMeta, minutes: number, da
     }
     else
         meta.defaultBreak = minutes;
-    for (const entry of card.entries)
+    for (const entry of card.entries.filter(entry => simpleDates(card).includes(entry.row)))
         if (date ? entry.row === date : !meta.customBreaks.includes(entry.row))
             entry.dailyBreakMinutes = minutes;
 }
 export function simpleReport(card: Card) {
+    card = {...card, entries: card.entries.filter(entry => simpleDates(card).includes(entry.row))};
     const validation = getReport(card);
     const segments: Segment[] = card.entries
         .filter(entry => entry.start.value !== null && entry.end.value !== null)
