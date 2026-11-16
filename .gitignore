@@ -5,3 +5,5 @@ playwright-report/
 *.png
 !public/og-image.png
 *.pdf
+
+!scripts/assets/og-source.png

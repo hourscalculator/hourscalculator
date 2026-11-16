@@ -1,15 +1,9 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { chromium } from '@playwright/test';
+import sharp from 'sharp';
 
-const browser = await chromium.launch();
-try {
-  const page = await browser.newPage({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
-  await page.setContent(await readFile(new URL('./templates/og-image.html', import.meta.url), 'utf8'));
-  await page.evaluate(() => document.fonts.ready);
-  const png = await page.screenshot({ type: 'png' });
-  if (png.length >= 300_000) throw new Error(`Social image exceeds 300KB: ${png.length} bytes`);
-  await writeFile(new URL('../dist/og-image.png', import.meta.url), png);
-  console.log(`Generated og-image.png: 1200×630, ${png.length} bytes`);
-} finally {
-  await browser.close();
-}
+const png = await sharp(new URL('./assets/og-source.png', import.meta.url).pathname)
+  .resize(1200, 630, { fit: 'contain', background: '#f5f5f0' })
+  .png({ palette: true, colours: 32, quality: 60, effort: 10, compressionLevel: 9, dither: 0 })
+  .toBuffer();
+if (png.length >= 300_000) throw new Error(`Social image exceeds 300KB: ${png.length} bytes`);
+await sharp(png).toFile(new URL('../dist/og-image.png', import.meta.url).pathname);
+console.log(`Generated og-image.png: 1200×630, ${png.length} bytes`);

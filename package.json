@@ -11,13 +11,14 @@
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-og-image.mjs",
     "test:e2e": "playwright test",
     "test:seo": "node scripts/seo.mjs",
     "test:og": "node scripts/test-og-image.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.62.0",
+    "sharp": "^0.35.5",
     "typescript": "~5.9.3",
     "vite": "^7.2.2",
     "vitest": "^5.1.0"
