@@ -1001,3 +1001,34 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
 #simple-wizard details .time-control input { padding-inline: .3rem; }
 #simple-wizard .simple-dialog-heading > div { min-width: 0; flex: 1; }
 #simple-wizard .simple-dialog-heading > button { flex-shrink: 0; }
+
+.setting-modified::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: #2563eb; }
+.entry-table { table-layout: fixed; width: 100%; }
+.entry-table th { text-align: left; }
+.entry-table .day > td { vertical-align: top; }
+.entry-table .date-cell { width: 16%; }
+.entry-table .date-cell .day-heading { display: flex; flex-direction: column; align-items: flex-start; }
+.entry-table .duration-cell { width: 24%; }
+.duration-cell label { display: block; }
+.duration-cell input { width: 100%; min-width: 0; }
+.duration-cell button { white-space: normal; }
+.entry-table .work-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+@media (max-width: 600px) {
+  .entry-table .day > td { padding: 4px; }
+  .entry-table .time-control { flex-wrap: wrap; }
+  .entry-table .work-fields { gap: 3px; }
+  .entry-table .time-field { min-width: 0; }
+  .entry-table input { min-width: 0; }
+}
+
+@media (max-width: 600px) {
+  .entry-table .work-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .entry-table .work-fields > .icon-button { grid-column: 1 / -1; justify-self: end; }
+  .entry-table .time-control input { width: 100%; max-width: 100%; }
+  .entry-table .meridiem { min-width: 0; width: 100%; padding: 4px; }
+}
+@media (max-width: 600px) {
+  .entry-table .meridiem { flex: 0 1 100%; }
+  .entry-table .meridiem span { width: 100%; font-size: 12px; }
+  .entry-table .meridiem.pm span { transform: none; }
+}

@@ -1,6 +1,6 @@
 import { openDetailed } from "./helpers";
 import { test, expect } from '@playwright/test';
-test('automatic break is a real row, endpoints drag, help closes outside', async ({page}) => {
+test('legacy automatic break remains editable and help closes outside', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await openDetailed(page);
   const day = page.locator('.day').last();
@@ -11,15 +11,10 @@ test('automatic break is a real row, endpoints drag, help closes outside', async
   await expect(day.locator('[data-field="b0-start"]')).toHaveValue('12:00');
   await expect(day.locator('[data-field="b0-end"]')).toHaveValue('12:30');
   await expect(day.locator('[data-daily-break]')).toHaveCount(0);
-  const handle = day.locator('[data-handle="b0-end"]');
-  await handle.scrollIntoViewIfNeeded();
-  const box = await handle.boundingBox();
-  await page.mouse.move(box!.x + 22, box!.y + 22);
-  await page.mouse.down();
-  await page.mouse.move(box!.x + 42, box!.y + 22);
-  await page.mouse.up();
+  await day.locator('[data-field="b0-end"]').fill('1245p');
+  await day.locator('[data-field="b0-end"]').blur();
   await expect(page.locator('[data-setting="auto"]')).not.toBeChecked();
-  await expect(day.locator('[data-field="b0-end"]')).not.toHaveValue('12:30');
+  await expect(day.locator('[data-field="b0-end"]')).toHaveValue('12:45');
   await expect(page.locator('.daily-total')).toHaveCount(0);
   await page.getByRole('button', {name:'Explain overtime'}).click();
   await page.mouse.click(1,1);

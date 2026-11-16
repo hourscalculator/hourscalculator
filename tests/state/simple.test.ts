@@ -99,12 +99,12 @@ test.each([
  expect(simpleReport(card).total).toBe(expected);
 });
 
-test('Detail automatic break replaces Simple minute break', () => {
+test('explicit Simple duration break takes precedence over automatic break', () => {
  const card=createCard('2026-11-09'); const meta=createSimpleMeta(card,true);
  setSimpleDefault(card,meta,'start','8','AM'); setSimpleDefault(card,meta,'end','4:30','PM'); setSimpleBreak(card,meta,30);
  card.settings.rate=2000; card.settings.auto=true; card.settings.deduction=60;
  const result=getReport(card);
- expect(result.total).toBe(2250); expect(result.pay).toBe(75000);
+ expect(result.total).toBe(2400); expect(result.pay).toBe(80000);
 });
 test('Detail aggregate leaves daily rows to shared Report', async () => {
  const {summaryReport}=await import('../../src/ui/report');

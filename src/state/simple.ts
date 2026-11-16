@@ -1,5 +1,5 @@
 import { calculate, dateString, dayNumber, type Segment } from '../domain/core';
-import { addEntry, cardPeriod, commitField, getReport, type Card } from './card';
+import { addEntry, displayTime, cardPeriod, commitField, getReport, type Card } from './card';
 export type SimpleMeta = {
     step: number;
     customizeTimes?: boolean;
@@ -26,6 +26,7 @@ export function simpleCompatible(card: Card) {
     return !card.multi && (card.length === '1' || card.length === 'custom') && card.settings.dayStart === 0 && card.settings.weekStart === 1 && entries.every(e => e.breaks.every(rest => rest.automatic) && entries.filter(other => other.row === e.row).length === 1);
 }
 export function simpleBreakMinutes(card: Card, entry: Card['entries'][number]) {
+    if (card.durationBreaks?.[entry.row] !== undefined) return card.durationBreaks[entry.row].reduce((sum, value) => sum + value, 0);
     return card.settings.auto ? card.settings.deduction : entry.dailyBreakMinutes ?? 0;
 }
 export function createSimpleMeta(card: Card, initializeDays = false): SimpleMeta {
@@ -40,8 +41,8 @@ export function createSimpleMeta(card: Card, initializeDays = false): SimpleMeta
     return {
         step: 1,
         dailyTimesSelected: active.every(e => e.start.value !== null && e.end.value !== null && !e.start.dirty && !e.end.dirty) && active.some(e => e.start.value !== first?.start.value || e.end.value !== first?.end.value),
-        defaultStart: first ? { raw: first.start.raw, ampm: first.start.ampm } : { raw: '8:00', ampm: 'AM' },
-        defaultEnd: first ? { raw: first.end.raw, ampm: first.end.ampm } : { raw: '4:30', ampm: 'PM' },
+        defaultStart: first ? { raw: first.start.value === null ? first.start.raw : displayTime(first.start.value, card), ampm: first.start.ampm } : { raw: '8:00', ampm: 'AM' },
+        defaultEnd: first ? { raw: first.end.value === null ? first.end.raw : displayTime(first.end.value, card), ampm: first.end.ampm } : { raw: card.format === '24' || !card.showAmPm ? '16:30' : '4:30', ampm: 'PM' },
         defaultBreak: first ? simpleBreakMinutes(card, first) : 0,
         customTimes: active.filter(e => e.start.value !== first?.start.value || e.end.value !== first?.end.value).map(e => e.row),
         customBreaks: active.filter(e => simpleBreakMinutes(card,e) !== (first ? simpleBreakMinutes(card,first) : 0)).map(e => e.row),
@@ -80,13 +81,6 @@ export function setSimpleDayTime(card: Card, meta: SimpleMeta, date: string, kin
     writeTime(card, date, kind, raw, ampm);
 }
 export function setSimpleBreak(card: Card, meta: SimpleMeta, minutes: number, date?: string) {
-    if (card.settings.auto) {
-        for (const entry of card.entries) {
-            entry.dailyBreakMinutes = card.settings.deduction;
-            entry.breaks = entry.breaks.filter(rest => !rest.automatic);
-        }
-        card.settings.auto = false;
-    }
     if (date) {
         if (!meta.customBreaks.includes(date))
             meta.customBreaks.push(date);
@@ -95,7 +89,11 @@ export function setSimpleBreak(card: Card, meta: SimpleMeta, minutes: number, da
         meta.defaultBreak = minutes;
     for (const entry of card.entries.filter(entry => simpleDates(card).includes(entry.row)))
         if (date ? entry.row === date : !meta.customBreaks.includes(entry.row))
-            entry.dailyBreakMinutes = minutes;
+        {
+            card.durationBreaks ??= {};
+            card.durationBreaks[entry.row] = [minutes];
+            delete entry.dailyBreakMinutes;
+        }
 }
 export function simpleReport(card: Card) {
     card = {...card, entries: card.entries.filter(entry => simpleDates(card).includes(entry.row))};
@@ -107,9 +105,10 @@ export function simpleReport(card: Card) {
             date: entry.actualDate ?? entry.row,
             start: entry.start.value!,
             end: entry.end.value!,
-            breaks: !card.settings.auto && entry.dailyBreakMinutes ? [{
+            suppressAutomatic: card.durationBreaks?.[entry.row] !== undefined,
+            breaks: (!card.settings.auto || card.durationBreaks?.[entry.row] !== undefined) && simpleBreakMinutes(card, entry) ? [{
                 start: entry.start.value!,
-                end: (entry.start.value! + entry.dailyBreakMinutes) % 1440,
+                end: (entry.start.value! + simpleBreakMinutes(card, entry)) % 1440,
                 paid: false,
             }] : [],
         }));

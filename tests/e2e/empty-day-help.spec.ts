@@ -9,7 +9,7 @@ test('last removal persists empty day and overtime help opens', async ({page}) =
   await page.reload();
   await expect(day.locator('.period')).toHaveCount(0);
   await day.locator('[data-add-break]').click();
-  await expect(day.locator('.break-fields')).toHaveCount(1);
+  await expect(day.locator('[data-duration-date]')).toHaveCount(1);
   await page.getByRole('button', {name:'Explain overtime'}).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog')).toContainText('Over 40 hours a week');

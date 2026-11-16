@@ -6,6 +6,7 @@ import {
   createCard,
 } from "../state/card";
 export type Template = {
+  draft?: Card;
   version: 1;
   id: string;
   name: string;
@@ -38,6 +39,7 @@ export function makeTemplate(card: Card, name: string, id: string): Template {
   } = card;
   return {
     version: 1,
+    draft: structuredClone(card),
     id,
     name,
     values: {
@@ -55,6 +57,12 @@ export function makeTemplate(card: Card, name: string, id: string): Template {
   };
 }
 export function applyTemplate(card: Card, template: Template) {
+  if (template.draft) {
+    const restored = decodeCard(JSON.stringify(template.draft));
+    for (const key of Object.keys(card)) delete (card as unknown as Record<string, unknown>)[key];
+    Object.assign(card, restored);
+    return;
+  }
   Object.assign(card, template.values);
   if (card.length === "custom" && card.endDate < card.anchor)
     card.endDate = card.anchor;
@@ -83,13 +91,16 @@ export function loadTemplates(storage: Pick<Storage, "getItem">): Template[] {
       template.name.length > 100
     )
       throw Error("Invalid template");
+    if (template.draft) return makeTemplate(decodeCard(JSON.stringify(template.draft)), template.name, template.id);
     const card = createCard("2026-01-01");
     Object.assign(card, template.values);
     if (card.length === "custom" && card.endDate < card.anchor)
       card.endDate = card.anchor;
     card.settings = { ...template.settings, rate: null };
     const validated = decodeCard(JSON.stringify(card));
-    return makeTemplate(validated, template.name, template.id);
+    const legacy = makeTemplate(validated, template.name, template.id);
+    delete legacy.draft;
+    return legacy;
   });
 }
 export function saveTemplates(
@@ -115,6 +126,7 @@ export async function snapshotId(card: Card) {
     }));
   const {
     entries,
+    durationBreaks,
     settings,
     name,
     confirmed,

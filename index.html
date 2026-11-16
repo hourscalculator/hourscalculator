@@ -47,8 +47,8 @@
               <div class="settings-grid quick-settings">
                 <div class="quick-group">
                   <label data-anchor="biweekly" class="biweekly">Report period<select data-card="length">
-                    <option value="1">1 week</option>
-                    <option value="2" selected>2 weeks</option>
+                    <option value="1" selected>1 week</option>
+                    <option value="2">2 weeks</option>
                     <option value="3">3 weeks</option>
                     <option value="4">4 weeks</option>
                     <option value="month">Calendar month</option>
@@ -56,7 +56,7 @@
                   </select></label>
                 </div>
                 <div class="quick-group">
-                  <label data-anchor="lunch" class="check"><input data-setting="auto" type="checkbox" checked="checked" /> Automatic daily unpaid break</label>
+                  <label data-anchor="lunch" class="check"><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label>
                   <label><span class="minutes-control"><input aria-label="Daily break minutes" data-setting="deduction" type="number" min="0" max="1439" value="30" /> minutes</span></label>
                 </div>
               </div>
@@ -108,14 +108,13 @@
               >
               <span>Period, display, breaks &amp; overtime</span>
             </summary>
+            <button id="reset-advanced" type="button">Reset advanced settings</button>
+            <h3>Basic settings</h3>
             <div class="settings-grid">
-              <label><input type="checkbox" data-visible-field="client">Show Client</label>
-              <label><input type="checkbox" data-visible-field="project">Show Project</label>
-              <label><input type="checkbox" data-visible-field="content">Show Content</label>
               <label
                 >Week starts<select data-setting="weekStart">
-                  <option value="1">Monday</option>
                   <option value="0">Sunday</option>
+                  <option value="1" selected>Monday</option>
                   <option value="2">Tuesday</option>
                   <option value="3">Wednesday</option>
                   <option value="4">Thursday</option>
@@ -157,7 +156,7 @@
                   type="number"
                   min="1"
                   max="10"
-                  value="2" /></label
+                  value="1" /></label
               ><label
                 >Default breaks<input
                   data-card="defaultBreaks"
@@ -186,17 +185,14 @@
               /></label>
             </div>
             <p class="setting-note">
-              Automatic daily breaks start at noon and use the selected minutes.
-              Edit a break in its time fields or use the endpoint arrow keys.
+              Enter unpaid break minutes for each date. Explicit daily minutes override automatic breaks.
             </p>
-          </details>
-          <input
-            id="share-url"
-            aria-label="Share snapshot URL"
-            readonly
-            hidden
-          />
-          <p id="share-note"></p>
+            <h3>Project settings</h3><div class="settings-grid">
+              <label><input type="checkbox" data-visible-field="client">Show Client</label>
+              <label><input type="checkbox" data-visible-field="project">Show Project</label>
+              <label><input type="checkbox" data-visible-field="content">Show Content</label>
+            </div>
+            <h3>Templates and approvals</h3>
           <details>
             <summary>Templates and approval receipts</summary>
             <button id="readonly-share">Create read-only approval snapshot</button
@@ -206,7 +202,7 @@
                 >Template name<input
                   id="template-name"
                   maxlength="100" /></label
-              ><button id="save-template">Save rules template</button
+              ><button id="save-template">Save draft template</button
               ><label>Saved templates<select id="templates"></select></label
               ><button id="apply-template">Preview and apply template</button
               ><button id="delete-template">Delete template</button>
@@ -220,6 +216,15 @@
               links by copying them into your email.
             </p>
           </details>
+          </details>
+          <input
+            id="share-url"
+            aria-label="Share snapshot URL"
+            readonly
+            hidden
+          />
+          <p id="share-note"></p>
+
 
 
         </div>
@@ -280,8 +285,7 @@
               times.
             </li>
             <li>
-              Add work periods and actual break start and end times. Mark paid
-              breaks when appropriate.
+              Add work periods and unpaid break durations in minutes. Each date can have multiple breaks.
             </li>
             <li>
               Use Settings to choose the reporting period, hourly rate and
@@ -293,9 +297,8 @@
             </li>
           </ol>
           <p>
-            The timeline is an additional editor. Focus a marked endpoint and
-            use its arrow keys to adjust it in five minute steps, or enter
-            exact times in the always visible fields. Out times earlier than In
+            Enter work times and unpaid break minutes. Review each date and
+            enter exact times in the visible fields. Out times earlier than In
             continue into the next day.
           </p>
         </section>
@@ -355,9 +358,7 @@
           <details>
             <summary>How do I subtract a lunch break?</summary>
             <p>
-              Add its actual start and end times as an unpaid break within the
-              work period. Alternatively enable the editable automatic break
-              setting. Automatic daily breaks start at noon. Adjust their input fields or use the arrow keys on their green timeline endpoints.
+              Add one or more unpaid break durations in minutes for each date. Breaks deduct from the earliest work minutes. Dates with positive breaks are skipped by the bulk action.
             </p>
           </details>
           <details>

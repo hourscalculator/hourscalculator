@@ -25,7 +25,7 @@ export function summaryReport(card: Card, combined = false, simple = false, hist
     const totals = { ...r, pay: all.pay, rate: all.employees.some(employee => employee.report.rate !== r.rate) ? null : r.rate };
     for (const key of ["total", "regular", "overtime", "double"] as const)
       totals[key] = all.employees.reduce((sum, employee) => sum + employee.report[key], 0);
-    return `<h2 class="report-title">All time cards</h2>${groups}<section class="report-grand-total" aria-label="Total time"><table class="summary-table"><tbody><tr class="report-total"><th scope="row">Total time</th><td>${hhmm(all.total)}</td><td>${decimal(all.total, card.settings.round)}</td></tr></tbody></table></section><h2 class="report-title">${card.length === "1" ? "Weekly totals" : "Period totals"}</h2><section class="report-card"><table class="summary-table">${paySummary(card, totals, false, false, all.pay === null ? null : all.employees.reduce((sum, employee) => sum + regularWages(employee.report)!, 0))}</table></section>`;
+    return `<h2 class="report-title">All time cards</h2>${groups}<section class="report-grand-total" aria-label="Total time"><table class="summary-table"><tbody><tr class="report-total"><th scope="row">Total time</th><td>${hhmm(all.total)}</td><td>${decimal(all.total, card.settings.round)}</td></tr></tbody></table></section><h2 class="report-title">${card.length === "1" ? "Weekly totals" : "Period totals"}</h2><section class="report-card"><table class="summary-table">${paySummary(card, totals, false, false, all.pay === null ? null : all.employees.reduce((sum, employee) => sum + regularWages(employee.report)!, 0), all.pay === null ? null : all.employees.reduce((sum, employee) => sum + Math.round(employee.report.double * (employee.report.rate ?? 0) * 2 / 60), 0))}</table></section>`;
   }
   const weekday = (day: number) => new Intl.DateTimeFormat("en-US", {
     weekday: "short", timeZone: "UTC",
@@ -56,9 +56,18 @@ function regularWages(r: Pick<ReturnType<typeof getReport>, "pay" | "billing" | 
   return r.pay === null ? null : r.billing === 'hourly' ? Math.round(r.regular * (r.rate ?? 0) / 60) : r.pay;
 }
 
-function paySummary(card: Card, r: Pick<ReturnType<typeof getReport>, "pay" | "billing" | "rate" | "regular" | "overtime" | "double" | "total">, hasContent = false, historical = false, combinedRegularPay?: number | null) {
+function paySummary(card: Card, r: Pick<ReturnType<typeof getReport>, "pay" | "billing" | "rate" | "regular" | "overtime" | "double" | "total">, hasContent = false, historical = false, combinedRegularPay?: number | null, combinedDoublePay?: number | null) {
   const totalSpan = hasContent ? ' colspan="2"' : "";
   const regularPay = combinedRegularPay === undefined ? regularWages(r) : combinedRegularPay;
+  if (r.double > 0 || ["ca"].includes(card.settings.mode)) {
+    const amount = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: card.currency }).format(value / 100);
+    const doublePay = combinedDoublePay === undefined ? (r.pay === null ? null : Math.round(r.double * (r.rate ?? 0) * 2 / 60)) : combinedDoublePay;
+    const overtimePay = r.pay === null ? null : r.pay - (regularPay ?? 0) - (doublePay ?? 0);
+    return `<tbody class="pay-summary"><tr><th></th><th scope="col">REG</th><th>+</th><th scope="col">OT</th><th>+</th><th scope="col">DT</th><th>=</th><th>Total</th></tr>
+      <tr><th scope="row">hh:mm</th><td>${hhmm(r.regular)}</td><td class="operator">+</td><td>${hhmm(r.overtime)}</td><td class="operator">+</td><td>${hhmm(r.double)}</td><td class="operator">=</td><td>${hhmm(r.total)}</td></tr>
+      <tr><th scope="row">Decimal</th><td>${decimal(r.regular, card.settings.round)}</td><td class="operator">+</td><td>${decimal(r.overtime, card.settings.round)}</td><td class="operator">+</td><td>${decimal(r.double, card.settings.round)}</td><td class="operator">=</td><td>${decimal(r.total, card.settings.round)}</td></tr>
+      ${r.pay === null ? "" : `<tr><th scope="row">Rate/Hr</th><td>${amount(r.rate)}</td><td></td><td>${amount(r.rate === null ? null : Math.round(r.rate * 1.5))}</td><td></td><td>${amount(r.rate === null ? null : r.rate * 2)}</td><td></td><td></td></tr><tr class="report-total"><th scope="row">Gross pay</th><td>${amount(regularPay)}</td><td class="operator">+</td><td>${amount(overtimePay)}</td><td class="operator">+</td><td>${amount(doublePay)}</td><td class="operator">=</td><td>${amount(r.pay)}</td></tr>`}</tbody>`;
+  }
   const premiumPay = r.pay === null ? null : r.pay - (regularPay ?? 0);
   const amount = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: card.currency }).format(value / 100);
   return `    <tbody class="pay-summary">${historical ? `
@@ -90,7 +99,7 @@ export function tableReport(card: Card, _resultOnly = false, simple = false) {
     }).join("")}<tr class="report-total"><th colspan="2">Total</th><td colspan="2">${hhmm(totals.total)}</td><td colspan="2">${decimal(totals.total,card.settings.round)}</td></tr></tbody></table>`;
     const billing = employees.filter((item,index) => employees.findIndex(other => other.report.rate === item.report.rate && overtimeRule(other.card) === overtimeRule(item.card)) === index).map(item => readonlyBillingSettings(item.card)).join("");
     totals.rate = employees.every(item => item.report.rate === totals.rate) ? totals.rate : null;
-    return `<h2 class="print-title">Time Card Calculator</h2>${sections}${hours}${billing}<table class="summary-table">${paySummary(card, totals, false, true, totals.pay === null ? null : employees.reduce((sum,item) => sum + regularWages(item.report)!,0))}</table>`;
+    return `<h2 class="print-title">Time Card Calculator</h2>${sections}${hours}${billing}<table class="summary-table">${paySummary(card, totals, false, true, totals.pay === null ? null : employees.reduce((sum,item) => sum + regularWages(item.report)!,0), totals.pay === null ? null : employees.reduce((sum,item) => sum + Math.round(item.report.double * (item.report.rate ?? 0) * 2 / 60),0))}</table>`;
 }
 
 function timeCardDetails(card: Card, simple = false) {
@@ -100,14 +109,17 @@ function timeCardDetails(card: Card, simple = false) {
       ? escape(field.raw || "—")
       : `${displayTime(field.value, employee)}${employee.format === "12" && employee.showAmPm ? ` ${field.ampm}` : ""}`;
     const entries = employee.entries.filter(entry => entry.row >= dateString(report.range.start) && entry.row < dateString(report.range.end) && report.rows.some(row => row.date === entry.row && row.minutes > 0));
-    const hasBreak = entries.some(entry => entry.breaks.length > 0 || (entry.dailyBreakMinutes ?? 0) > 0) || employee.settings.auto;
+    const hasBreak = entries.some(entry => entry.breaks.length > 0 || (entry.dailyBreakMinutes ?? 0) > 0 || (employee.durationBreaks?.[entry.row]?.some(value => value > 0) ?? false)) || employee.settings.auto;
     const hasContent = entries.some(entry => employee.content?.[entry.row]?.trim());
     const rows = entries.map(source => {
         const entry = structuredClone(source);
+        if (employee.durationBreaks?.[entry.row] !== undefined) entry.breaks = entry.breaks.filter(rest => !rest.automatic);
         for (const field of [entry.start, entry.end, ...entry.breaks.flatMap(rest => [rest.start, rest.end])]) commitField(employee, entry, field);
         const explicitMinutes = entry.breaks.reduce((sum, rest) => sum + (rest.start.value === null || rest.end.value === null ? 0 : (rest.end.value - rest.start.value + 1440) % 1440), 0);
         const automaticMinutes = employee.entries.find(e => e.row === entry.row)?.id === entry.id ? report.rows.filter(row => row.date === entry.row).reduce((sum, row) => sum + row.automaticDeduction, 0) : 0;
-        const breakMinutes = explicitMinutes + (employee.settings.auto ? automaticMinutes : entry.breaks.length ? 0 : entry.dailyBreakMinutes ?? 0);
+        const duration = employee.durationBreaks?.[entry.row];
+        const durationMinutes = employee.entries.find(e => e.row === entry.row)?.id === entry.id ? (duration ?? []).reduce((sum, value) => sum + value, 0) : 0;
+        const breakMinutes = explicitMinutes + (duration !== undefined ? durationMinutes : employee.settings.auto ? automaticMinutes : entry.breaks.length ? 0 : entry.dailyBreakMinutes ?? 0);
         const breaks = `${breakMinutes} min`;
         return `<tr><th scope="row">${new Date(`${entry.row}T12:00:00Z`).toLocaleDateString("en-US",{weekday:"short",timeZone:"UTC"})}${employee.hidePeriod ? "" : ` ${escape(entry.row)}`}</th><td>${time(entry.start)}</td><td>${time(entry.end)}</td>${hasBreak ? `<td>${breaks}</td>` : ""}${hasContent ? `<td class="report-content">${escape(employee.content?.[entry.row] ?? "")}</td>` : ""}</tr>`;
       }).join("");

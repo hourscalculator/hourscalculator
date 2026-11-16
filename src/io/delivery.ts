@@ -83,6 +83,7 @@ export function decodeCard(text: string): Card {
       JSON.stringify({
         ...c,
         ...employee,
+        durationBreaks: employee.durationBreaks,
         content: employee.content ?? {},
         version: 2,
         selectedEmployee: employee.id,
@@ -106,6 +107,10 @@ export function decodeCard(text: string): Card {
   if (c.emptyRows !== undefined && (!Array.isArray(c.emptyRows) || c.emptyRows.some((key: unknown) => typeof key !== "string"))) throw Error("Invalid empty day state");
   if (c.syncedRows !== undefined && (!c.syncedRows || typeof c.syncedRows !== "object" || Array.isArray(c.syncedRows) || Object.values(c.syncedRows).some((value) => typeof value !== "string"))) throw Error("Invalid synchronized day state");
   if (c.content !== undefined && (!c.content || typeof c.content !== "object" || Array.isArray(c.content) || Object.entries(c.content).some(([date, value]) => !isCivilDate(date) || typeof value !== "string" || value.length > 2000))) throw Error("Invalid daily content");
+  if (c.durationBreaks !== undefined && (!c.durationBreaks || typeof c.durationBreaks !== "object" || Array.isArray(c.durationBreaks))) throw Error("Invalid duration breaks");
+  for (const [date, values] of Object.entries(c.durationBreaks ?? {})) {
+    if (!isCivilDate(date) || !Array.isArray(values) || values.some(value => !Number.isInteger(value) || value < 0 || value > 1439)) throw Error(`Invalid duration break: ${c.selectedEmployee} ${date}`);
+  }
   const s = c.settings;
   if (
     !["weekly", "daily", "ca"].includes(s.mode) ||
@@ -319,6 +324,7 @@ export function csv(card: Card, simple = false): string {
         b.end.value,
       ]);
   }
+  for (const [date, values] of Object.entries(card.durationBreaks ?? {})) rows.push(["Unpaid duration breaks", date, ...values]);
   rows.push(
     ["Conversion", "60 minutes = 1 hour; decimal hours = actual minutes / 60"],
     [

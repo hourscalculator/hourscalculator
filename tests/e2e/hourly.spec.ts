@@ -44,9 +44,7 @@ test('Monday fills missing fields and newly entered breaks without overwriting',
   await expect(tuesday.locator('[data-field="start"]')).toHaveValue('10:00');
   await expect(tuesday.locator('[data-field="end"]')).toHaveValue('5:00');
   await monday.locator('[data-add-break]').click();
-  await monday.locator('[data-field="b0-start"]').fill('12p');
-  await monday.locator('[data-field="b0-end"]').fill('1230p');
-  await monday.locator('[data-field="b0-end"]').blur();
-  await expect(tuesday.locator('[data-field="b0-end"]')).toHaveValue('12:30');
-  await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('36:30');
+  await expect(monday.locator('[data-duration-date]')).toHaveValue('30');
+  await expect(tuesday.locator('[data-duration-date]')).toHaveCount(0);
+  await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('38:30');
 });

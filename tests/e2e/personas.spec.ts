@@ -56,7 +56,7 @@ test('HR biweekly 40 and 42 hours yields 82 hours and $1826', async ({ page }) =
   await openDetailed(page);
   await page.locator('[data-card="name"]').fill('Jordan');
   await page.locator('[data-card="length"]').selectOption('2');
-  await page.locator('.rate-settings .overtime-rule').selectOption('weekly');
+  await page.locator('.rate-settings .overtime-rule').selectOption('weekly40');
   await page.locator('.rate-settings [data-setting="rate"]').fill('22');
   await page.locator('[data-setting="auto"]').check();
   const monday = page.locator('.day[data-date="2026-11-02"]');
@@ -112,14 +112,17 @@ test('manual lunch and automatic break deduct once and overlapping breaks block 
  const day=page.locator('.day').last();
  await day.locator('[data-field="start"]').fill('9a'); await day.locator('[data-field="start"]').blur();
  await day.locator('[data-field="end"]').fill('5p'); await day.locator('[data-field="end"]').blur();
- await day.locator('[data-add-break]').click();
- await day.locator('[data-field="b0-start"]').fill('12p'); await day.locator('[data-field="b0-start"]').blur();
- await day.locator('[data-field="b0-end"]').fill('12:30p'); await day.locator('[data-field="b0-end"]').blur();
  await page.locator('[data-setting="auto"]').check();
  await expect(page.locator('#daily-report .report-grand-total')).toContainText('7:30');
- await day.locator('[data-add-break]').click();
- await day.locator('[data-field="b1-start"]').fill('12:15p'); await day.locator('[data-field="b1-start"]').blur();
- await day.locator('[data-field="b1-end"]').fill('12:45p'); await day.locator('[data-field="b1-end"]').blur();
+ await page.evaluate(() => {
+   const card = JSON.parse(localStorage.getItem('time-card-v1')!);
+   const entry = card.entries.filter((entry: any) => entry.start.value !== null).at(-1);
+   entry.breaks[0].automatic = false;
+   const field = (value: number) => ({ raw: String(value), value, ampm: 'PM', dirty: false });
+   entry.breaks.push({ id: 'legacy-overlap', paid: false, start: field(735), end: field(765) });
+   localStorage.setItem('time-card-v1', JSON.stringify(card));
+ });
+ await page.reload();
  await expect(day.locator('.field-message').filter({hasText:'overlaps'}).first()).toBeVisible();
  const downloads: string[]=[]; page.on('download',file=>downloads.push(file.suggestedFilename()));
  await page.locator('#csv').click();
@@ -139,9 +142,14 @@ test('E F G multi-period gaps blank and zero duration are explicit', async ({pag
  await day.locator('[data-field="start"]').last().fill('1p'); await day.locator('[data-field="start"]').last().blur();
  await day.locator('[data-field="end"]').last().fill('5p'); await day.locator('[data-field="end"]').last().blur();
  await expect(page.locator('#daily-report .report-grand-total')).toContainText('7:00');
- await day.locator('[data-add-break]').click();
- await day.locator('[data-field="b0-start"]').fill('12:15p'); await day.locator('[data-field="b0-start"]').blur();
- await day.locator('[data-field="b0-end"]').fill('12:45p'); await day.locator('[data-field="b0-end"]').blur();
+ await page.evaluate(() => {
+   const card = JSON.parse(localStorage.getItem('time-card-v1')!);
+   const entry = card.entries.filter((entry: any) => entry.start.value !== null).at(-1);
+   const field = (value: number) => ({ raw: String(value), value, ampm: 'PM', dirty: false });
+   entry.breaks.push({ id: 'legacy-gap', paid: false, start: field(735), end: field(765) });
+   localStorage.setItem('time-card-v1', JSON.stringify(card));
+ });
+ await page.reload();
  await expect(day.locator('.field-message').filter({hasText:/outside|within|work/i}).first()).toBeVisible();
  const downloads: string[]=[]; page.on('download',file=>downloads.push(file.suggestedFilename()));
  await page.locator('#csv').click(); expect(downloads).toEqual([]);

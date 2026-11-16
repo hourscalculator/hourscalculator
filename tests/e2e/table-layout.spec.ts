@@ -14,7 +14,7 @@ test('two tables, persistent rows and any-day forward fill', async ({ page }) =>
   await wednesday.locator('[data-add-break]').click();
   await expect(page.locator('[data-paid]')).toHaveCount(0);
   await expect(page.locator('#report-body')).toBeEmpty();
-  const printed = page.locator('#print-report .employee-report > .report-hours');
+  const printed = page.locator('#print-report > .report-hours');
   await expect(printed).toContainText('Wed');
   await expect(page.locator('#print-report .readonly-time-card')).toHaveCount(1);
   const actions = page.locator('#editor .actions');

@@ -11,9 +11,7 @@ test("table entry, breaks, totals and 390px layout", async ({ page }) => {
   await inputs.nth(1).blur();
   await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("8:00");
   await page.locator(".day").last().locator("[data-add-break]").first().click();
-  await page.locator('[data-field="b0-start"]').first().fill("12p");
-  await page.locator('[data-field="b0-end"]').first().fill("1230p");
-  await page.locator('[data-field="b0-end"]').first().blur();
+  await expect(page.locator('.day').last().locator('[data-duration-date]')).toHaveValue('30');
   await expect(page.locator("#daily-report .report-grand-total .report-total td:first-of-type")).toHaveText("7:30");
   expect(
     await page.evaluate(

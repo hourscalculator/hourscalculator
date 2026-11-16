@@ -116,5 +116,118 @@ test('explicit lunch replaces the same legacy minute deduction', () => {
 });
 
 test("default work periods match the static first screen", () => {
-  expect(createCard("2026-11-09").defaultSegments).toBe(2);
+  expect(createCard("2026-11-09").defaultSegments).toBe(1);
+});
+
+test('duration breaks deduct earliest work minutes across segments and preserve blank days', () => {
+  const card = createCard('2026-11-16');
+  Object.assign(card.settings, { overtime: false, rate: 2000 });
+  Object.assign(card, { durationBreaks: { '2026-11-16': [15, 30], '2026-11-17': [30] } });
+  for (const [id, start, end] of [['later', 780, 1020], ['early', 540, 720]] as const) {
+    const entry = addEntry(card, card.anchor, id);
+    setMinute(card, entry, entry.start, start);
+    setMinute(card, entry, entry.end, end);
+  }
+  expect(getReport(card).errors).toEqual([]);
+  expect(getReport(card).total).toBe(375);
+  expect(getReport(card).pay).toBe(12500);
+});
+
+test('explicit duration break overrides automatic deduction including zero and empty', () => {
+  for (const minutes of [[15], [0], []]) {
+    const card = createCard('2026-11-16');
+    Object.assign(card, { durationBreaks: { '2026-11-16': minutes } });
+    card.settings.auto = true;
+    const entry = addEntry(card, card.anchor, 'shift');
+    setMinute(card, entry, entry.start, 540);
+    setMinute(card, entry, entry.end, 1020);
+    expect(getReport(card).total).toBe(480 - minutes.reduce((a, b) => a + b, 0));
+  }
+});
+
+test('duration break ownership survives switching and decoding legacy employees', async () => {
+  const { decodeCard } = await import('../../src/io/delivery');
+  const card = createCard('2026-11-16');
+  card.durationBreaks = { [card.anchor]: [15, 30] };
+  addEmployee(card, 'second');
+  expect(card.durationBreaks).toBeUndefined();
+  selectEmployee(card, 'primary');
+  expect(card.durationBreaks).toEqual({ [card.anchor]: [15, 30] });
+  const decoded = decodeCard(JSON.stringify(card));
+  selectEmployee(decoded, 'second');
+  expect(decoded.durationBreaks).toBeUndefined();
+});
+
+test('duration break invalid values and excessive totals block reports and decoding', async () => {
+  const { decodeCard, csv } = await import('../../src/io/delivery');
+  for (const value of [-1, 1.5, 1440]) {
+    const card = createCard('2026-11-16');
+    card.durationBreaks = { [card.anchor]: [value] };
+    expect(getReport(card).errors.join()).toContain('2026-11-16');
+    expect(() => decodeCard(JSON.stringify(card))).toThrow('2026-11-16');
+  }
+  const card = createCard('2026-11-16');
+  card.durationBreaks = { [card.anchor]: [60] };
+  const entry = addEntry(card, card.anchor, 'short');
+  setMinute(card, entry, entry.start, 540);
+  setMinute(card, entry, entry.end, 570);
+  expect(getReport(card).errors.join()).toContain('exceed');
+  expect(() => csv(card)).toThrow();
+});
+
+test('duration breaks cross midnight from earliest minutes and preserve manual unpaid intervals', () => {
+  const card = createCard('2026-11-22');
+  card.length = 'custom'; card.endDate = '2026-11-23';
+  card.durationBreaks = { [card.anchor]: [30] };
+  const entry = addEntry(card, card.anchor, 'night');
+  setMinute(card, entry, entry.start, 1320); setMinute(card, entry, entry.end, 360);
+  expect(getReport(card).rows.map(row => row.minutes)).toEqual([90, 360]);
+});
+
+test('duration breaks skip existing unpaid minutes and retain paid interval accounting', () => {
+  const card = createCard('2026-11-16');
+  card.durationBreaks = { [card.anchor]: [45] };
+  const entry = addEntry(card, card.anchor, 'mixed');
+  setMinute(card, entry, entry.start, 540); setMinute(card, entry, entry.end, 720);
+  for (const [id, start, end, paid] of [['unpaid', 540, 555, false], ['paid', 555, 570, true]] as const) {
+    entry.breaks.push({ id, paid, start: { raw: String(start), value: start, ampm: 'AM', dirty: false }, end: { raw: String(end), value: end, ampm: 'AM', dirty: false } });
+  }
+  expect(getReport(card).errors).toEqual([]);
+  expect(getReport(card).total).toBe(120);
+});
+
+test('California formula separates double time hours and wages', async () => {
+  const { tableReport } = await import('../../src/ui/report');
+  const card = createCard('2026-11-16');
+  Object.assign(card.settings, { mode: 'ca', rate: 2000 });
+  const entry = addEntry(card, card.anchor, 'long');
+  setMinute(card, entry, entry.start, 360); setMinute(card, entry, entry.end, 1140);
+  expect(getReport(card).pay).toBe(32000);
+  expect(tableReport(card)).toContain('>DT</th>');
+});
+
+test('three cards with daily duration lists aggregate exact minutes and cents', async () => {
+  const { getTableReport, employeeCards } = await import('../../src/state/card');
+  const { decodeCard, encodeShare, decodeShare } = await import('../../src/io/delivery');
+  const card = createCard('2026-11-16');
+  for (const employee of ['primary', 'second', 'third']) {
+    if (employee !== 'primary') addEmployee(card, employee);
+    card.settings.rate = 2500;
+    card.durationBreaks = { [card.anchor]: [15, 15] };
+    const entry = addEntry(card, card.anchor, employee);
+    setMinute(card, entry, entry.start, 540); setMinute(card, entry, entry.end, 1050);
+  }
+  const restored = decodeCard(JSON.stringify(card));
+  expect(employeeCards(restored).map(card => getReport(card).total)).toEqual([480, 480, 480]);
+  const shared = await decodeShare('#' + await encodeShare(restored, 'report'));
+  expect(getTableReport(shared).total).toBe(1440);
+  expect(getTableReport(shared).pay).toBe(60000);
+});
+
+test('configured default breaks create daily durations for new dates', () => {
+  const card = createCard('2026-11-16');
+  card.defaultBreaks = 2;
+  const entry = addEntry(card, card.anchor, 'configured');
+  expect(entry.breaks).toEqual([]);
+  expect(card.durationBreaks?.[card.anchor]).toEqual([30, 30]);
 });

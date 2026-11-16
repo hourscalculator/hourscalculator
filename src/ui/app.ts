@@ -53,6 +53,7 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 export async function start() {
+  document.querySelectorAll<HTMLDetailsElement>("#faq details").forEach(details => { details.open = true; });
   let storage: Storage;
   try {
     storage = localStorage;
@@ -246,43 +247,6 @@ export async function start() {
   function input(entry: Entry, f: Field, key: string, label: string) {
     return `<label class="time-field"><span class="time-field-heading"><span>${label}</span></span><span class="time-control"><input aria-label="${label} ${escape(entry.row)}" data-entry="${entry.id}" data-field="${key}" value="${escape(f.dirty ? f.raw : f.value === null ? f.raw : displayTime(f.value, card))}" inputmode="text" autocomplete="off" placeholder="9:00 or 900" ${f.raw && f.value === null ? 'aria-invalid="true"' : ""}>${card.format === "12" && card.showAmPm ? `<button type="button" class="meridiem ${f.ampm.toLowerCase()}" role="switch" aria-checked="${f.ampm === "PM"}" aria-label="${label} PM" data-toggle-meridiem="${key}" data-entry="${entry.id}"><span>${f.ampm}</span></button>` : ""}</span>${f.value !== null && (!card.showAmPm || card.format === "24") ? `<small>${hhmm(f.value)}</small>` : ""}</label>`;
   }
-  function timeline(entries: Entry[]) {
-    const content = entries.map((source) => {
-      const entry = structuredClone(source);
-      for (const field of [entry.start, entry.end, ...entry.breaks.flatMap(rest => [rest.start, rest.end])]) {
-        commitField(card, entry, field);
-      }
-      const hasWork = entry.start.value !== null && entry.end.value !== null;
-      const start = entry.start.value ?? 0;
-      const finish = entry.end.value ?? 0;
-      const end = finish + (finish < start ? 1440 : 0);
-      const shift = hasWork
-        ? `<span class="shift-bar" style="left:${(start / 1440) * 100}%;width:${((Math.min(end, 1440) - start) / 1440) * 100}%"></span>${end > 1440 ? `<span class="shift-bar continuation" style="left:0;width:${(finish / 1440) * 100}%"></span>` : ""}`
-        : "";
-      const workEndpoints = (hasWork ? (["start", "end"] as const) : [])
-        .map(
-          (key) =>
-            `<button type="button" class="handle" style="pointer-events:auto;left:calc(${(entry[key].value! / 1440) * 100}% - 22px)" data-handle="${key}" data-entry="${entry.id}" aria-label="Adjust ${key} ${escape(entry.row)} with arrow keys" title="Use arrow keys to adjust ${key}"></button>`,
-        )
-        .join("");
-      const breaks = entry.breaks
-        .map((rest, index) => {
-          if (rest.start.value === null || rest.end.value === null) return "";
-          const start = rest.start.value;
-          const finish = rest.end.value;
-          const width = (((finish - start + 1440) % 1440) / 1440) * 100;
-          return `<span class="break-bar ${rest.paid ? "paid" : ""}" style="left:${(start / 1440) * 100}%;width:${width}%"></span>${(["start", "end"] as const)
-            .map(
-              (key) =>
-                `<button type="button" class="handle break-handle" style="pointer-events:auto;left:calc(${(rest[key].value! / 1440) * 100}% - 22px)" data-handle="b${index}-${key}" data-entry="${entry.id}" aria-label="Adjust break ${key} ${escape(entry.row)} with arrow keys" title="Use arrow keys to adjust this break"></button>`,
-            )
-            .join("")}`;
-        })
-        .join("");
-      return shift + workEndpoints + breaks;
-    }).join("");
-    return content ? `<div class="track-row">${content}</div>` : "";
-  }
   function alignAnchor() {
     if (!["month", "custom"].includes(card.length))
       card.anchor = dateString(cardPeriod(card).start);
@@ -347,12 +311,13 @@ export async function start() {
     initialize(card, id);
     for (const date of range.dates) {
       const entries = card.entries.filter((entry) => entry.row === date);
+      if (card.durationBreaks?.[date] !== undefined) for (const entry of entries) entry.breaks = entry.breaks.filter(rest => !rest.automatic);
       if (entries.some(entry => entry.breaks.some(rest => !rest.automatic && (rest.start.raw || rest.end.raw)))) {
         for (const entry of entries) entry.breaks = entry.breaks.filter(rest => !rest.automatic);
       }
       for (const entry of entries) {
         const legacy = entry.dailyBreakMinutes;
-        if (legacy !== undefined || entries.some(e => e.breaks.some(b => !b.automatic && (b.start.raw || b.end.raw))) || !(card.settings.auto && entry === entries[0])) continue;
+        if (card.durationBreaks?.[date] !== undefined || legacy !== undefined || entries.some(e => e.breaks.some(b => !b.automatic && (b.start.raw || b.end.raw))) || !(card.settings.auto && entry === entries[0])) continue;
         let rest = entry.breaks.find((b) => b.automatic);
         if (!rest) {
           rest = { id: id(), start: field(), end: field(), paid: false, automatic: true };
@@ -376,9 +341,10 @@ export async function start() {
           context = day < range.start || day >= range.end,
           entries = card.entries.filter((e) => e.row === date),
           row = result.rows.find((r) => r.date === date);
-        html += `<tr class="day ${context ? "context" : ""}" data-date="${date}"><td colspan="2"><div class="day-content"><div class="day-heading"><span>${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(day * 86400000))}</span><time class="day-date" datetime="${date}">${new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(new Date(day * 86400000))}</time><span class="day-hours">${context ? "Context day" : row ? hhmm(row.minutes) : "—"}</span></div><div class="timeline" ${entries.length ? "" : "hidden"} data-timeline="${date}" aria-label="Timeline ${date}"><div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>${timeline(entries) || '<div class="empty-track">Enter In and Out to show the timeline</div>'}</div>`;
+        html += `<tr class="day ${context ? "context" : ""}" data-date="${date}"><td colspan="2"><div class="day-content"><div class="day-heading"><span>${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(day * 86400000))}</span><time class="day-date" datetime="${date}">${new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(new Date(day * 86400000))}</time><span class="day-hours">${context ? "Context day" : row ? hhmm(row.minutes) : "—"}</span></div>`;
         for (const e of entries) {
-          const showMinuteBreak =
+          const durationMinutes = entries[0] === e ? card.durationBreaks?.[date]?.reduce((sum, value) => sum + value, 0) : undefined;
+          const showMinuteBreak = (durationMinutes ?? 0) > 0 ||
             e.dailyBreakMinutes !== undefined &&
             e.dailyBreakMinutes > 0 &&
             !card.settings.auto &&
@@ -386,7 +352,7 @@ export async function start() {
               rest => !rest.automatic && (rest.start.raw || rest.end.raw),
             );
           const minuteBreak = showMinuteBreak
-            ? `<div class="daily-break legacy-break-summary">Unpaid break: ${e.dailyBreakMinutes} min</div>`
+            ? `<div class="daily-break legacy-break-summary">Unpaid break: ${durationMinutes ?? e.dailyBreakMinutes} min</div>`
             : "";
           html += `<div class="period" data-period="${e.id}"><div class="work-fields">${input(e, e.start, "start", "In")}${input(e, e.end, "end", "Out")}<button class="icon-button" data-remove="${e.id}" aria-label="Delete work period ${date}">×</button></div>${e.actualDate && e.actualDate !== e.row ? `<small>Actual start date ${e.actualDate}</small>` : ""}${e.start.value !== null && e.end.value !== null && e.end.value < e.start.value ? "<small>Out is on the next day (+1 day)</small>" : ""}<div class="break-details">${minuteBreak}${e.breaks.map((b, i) => `<div class="break-fields">${input(e, b.start, `b${i}-start`, "Break in")}${input(e, b.end, `b${i}-end`, "Break out")}${b.paid ? '<span class="legacy-paid">Paid break</span>' : ""}<button data-remove-break="${e.id}:${i}" aria-label="Delete break">×</button></div>`).join("")}</div></div>`;
         }
@@ -394,11 +360,34 @@ export async function start() {
       }
       html += "</tbody></table></section>";
     }
-    days.innerHTML = html;
+    days.innerHTML = `<button type="button" data-bulk-break="true">Add 30 min break to all dates</button>` + html;
+    for (const day of days.querySelectorAll<HTMLElement>(".day")) {
+      const date = day.dataset.date!;
+      const values = card.durationBreaks?.[date];
+      if (values !== undefined) {
+        day.querySelectorAll(".legacy-break-summary").forEach(element => element.remove());
+        day.querySelector(".day-content")!.insertAdjacentHTML("beforeend", values.map((value, index) => `<label>Minutes<input type="number" min="0" max="1439" step="1" data-duration-date="${date}" data-duration-index="${index}" aria-label="Unpaid break ${date} ${index + 1}" value="${value}"></label><button type="button" data-delete-duration="${date}" data-duration-index="${index}">Delete break</button>`).join(""));
+      }
+    }
+    for (const table of days.querySelectorAll<HTMLTableElement>(".entry-table")) {
+      if (!table.tHead) table.createTHead();
+      table.tHead!.insertAdjacentHTML("beforeend", "<tr><th scope=col>Date</th><th scope=col>In</th><th scope=col>Out</th><th scope=col>Break</th></tr>");
+      table.querySelectorAll<HTMLElement>(".week-heading").forEach(heading => heading.setAttribute("colspan", "4"));
+    }
+    for (const day of days.querySelectorAll<HTMLTableRowElement>(".day")) {
+      const heading = day.querySelector(".day-heading")!;
+      const dateCell = document.createElement("td");
+      dateCell.className = "date-cell";
+      dateCell.append(heading);
+      day.prepend(dateCell);
+      const breaksCell = document.createElement("td");
+      breaksCell.className = "duration-cell";
+      for (const element of day.querySelectorAll("label:has([data-duration-date]), [data-delete-duration], [data-add-break], .legacy-break-summary")) breaksCell.append(element);
+      day.append(breaksCell);
+    }
     for (const content of days.querySelectorAll(".day-content")) {
-      const timeline = content.querySelector(".timeline");
       const add = content.querySelector("[data-add]");
-      if (timeline && add) {
+      if (add) {
         const actions = document.createElement("div");
         actions.className = "day-actions";
         add.before(actions);
@@ -412,19 +401,25 @@ export async function start() {
   }
   function renderValidation(report: ReturnType<typeof getReport>) {
     const controls = [
-      ...workerRoot.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-field], [data-setting], [data-card], .overtime-rule"),
+      ...workerRoot.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-field], [data-setting], [data-card], [data-duration-date], .overtime-rule"),
       ...root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("#settings [data-setting], #settings [data-card], .rate-settings [data-setting], .overtime-rule"),
     ];
     const messages = new Map<HTMLInputElement | HTMLSelectElement, string>();
     for (const control of controls) {
       if (!control.disabled && !control.validity.valid) messages.set(control, control.validationMessage);
+      if (control.dataset.durationDate) {
+        const value = card.durationBreaks?.[control.dataset.durationDate]?.[Number(control.dataset.durationIndex)];
+        if (!Number.isInteger(value) || value! < 0 || value! > 1439) messages.set(control, "Enter whole minutes from 0 to 1439.");
+      }
     }
     for (const issue of report.issues) {
       const entry = card.entries.find((item) => item.id === issue.segmentId);
       if (!entry) continue;
       const field = issue.breakId === undefined ? issue.field : `b${entry.breaks.findIndex((rest) => rest.id === issue.breakId)}-${issue.field}`;
       const control = days.querySelector<HTMLInputElement>(`[data-entry="${entry.id}"][data-field="${field}"]`);
-      if (control) messages.set(control, issue.message);
+      const durationControls = days.querySelectorAll<HTMLInputElement>(`[data-duration-date="${entry.row}"]`);
+      const target = issue.message.includes("duration breaks") && durationControls.length ? durationControls[durationControls.length - 1] : control;
+      if (target) messages.set(target, issue.message);
     }
     if (report.errors.some((error) => error.includes("automatic break exceeds hours"))) messages.set(workerRoot.querySelector<HTMLInputElement>('[data-setting="deduction"]')!, "Daily break is longer than the working time.");
     for (const control of controls) setFieldError(control, messages.get(control) ?? "");
@@ -435,8 +430,6 @@ export async function start() {
       const label = day.querySelector(".day-hours");
       const row = r.rows.find((row) => row.date === day.dataset.date);
       if (label) label.textContent = row ? hhmm(row.minutes) : "—";
-      const track = day.querySelector<HTMLElement>(".timeline");
-      if (track) track.innerHTML = `<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>${timeline(card.entries.filter(entry => entry.row === day.dataset.date)) || '<div class="empty-track">Enter In and Out to show the timeline</div>'}`;
     }
     workerRoot.querySelector<HTMLInputElement>('[data-setting="deduction"]')!.disabled = !card.settings.auto;
     root.querySelector(".rate-currency")!.textContent = new Intl.NumberFormat("en-US", { style: "currency", currency: card.currency }).formatToParts(0).find((part) => part.type === "currency")!.value;
@@ -465,6 +458,7 @@ export async function start() {
     };
     for (const key of ['client', 'project', 'content'] as const) {
       root.querySelector<HTMLInputElement>(`[data-visible-field="${key}"]`)!.checked = fields[key];
+      root.querySelector(`[data-visible-field="${key}"]`)!.closest("label")!.classList.toggle("setting-modified", fields[key]);
       const selector = key === 'content' ? '[data-add-content], .content-field' : `[data-card="${key}"]`;
       root.querySelectorAll<HTMLElement>(selector).forEach(element => {
         (key === 'content' ? element : element.closest('label')!).hidden = !fields[key];
@@ -472,6 +466,13 @@ export async function start() {
     }
   }
   function syncControls() {
+    const defaults = createCard(card.anchor);
+    for (const control of root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("#settings [data-card], #settings [data-setting]")) {
+      const key = control.dataset.card ?? control.dataset.setting!;
+      const actual = control.dataset.card ? (card as unknown as Record<string, unknown>)[key] : (card.settings as unknown as Record<string, unknown>)[key];
+      const expected = control.dataset.card ? (defaults as unknown as Record<string, unknown>)[key] : (defaults.settings as unknown as Record<string, unknown>)[key];
+      control.closest("label")?.classList.toggle("setting-modified", actual !== expected);
+    }
     root.querySelector<HTMLSelectElement>(".overtime-rule")!.value = card.settings.overtime === false ? "none" : card.settings.mode === "weekly" ? "weekly40" : card.settings.mode;
     for (const el of [
       ...workerRoot.querySelectorAll<
@@ -572,58 +573,6 @@ export async function start() {
   root.addEventListener("focusin", selectExistingInput);
   root.addEventListener("click", selectExistingInput);
   root.addEventListener("pointerdown", selectInputContents);
-  root.addEventListener("pointerdown", (event) => {
-    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-handle]");
-    if (!target || event.button !== 0) return;
-    activateWorkerFromTarget(target);
-    const track = target.closest<HTMLElement>(".timeline")!;
-    const { entry, f } = locate(target);
-    const initial = f.value!;
-    const bounds = track.getBoundingClientRect();
-    let minute = initial;
-    let moved = false;
-    const preview = document.createElement("span");
-    preview.className = "endpoint-time";
-    preview.hidden = true;
-    target.append(preview);
-    target.setPointerCapture(event.pointerId);
-    const move = (next: PointerEvent) => {
-      if (next.pointerId !== event.pointerId) return;
-      if (!moved && Math.abs(next.clientX - event.clientX) < 5) return;
-      moved = true;
-      minute = Math.max(0, Math.min(1435, Math.round((initial + (next.clientX - event.clientX) / bounds.width * 1440) / 5) * 5));
-      preview.hidden = false;
-      preview.textContent = displayTime(minute, card);
-      target.style.left = `calc(${minute / 1440 * 100}% - 22px)`;
-    };
-    const finish = (next: PointerEvent) => {
-      if (next.pointerId !== event.pointerId) return;
-      target.removeEventListener("pointermove", move);
-      target.removeEventListener("pointerup", finish);
-      target.removeEventListener("pointercancel", finish);
-      target.removeEventListener("lostpointercapture", finish);
-      if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
-      preview.remove();
-      if (next.type !== "pointerup" || !moved) {
-        target.style.left = `calc(${initial / 1440 * 100}% - 22px)`;
-        return;
-      }
-      stopRowSync(entry.row);
-      if (target.dataset.handle!.startsWith("b")) {
-        card.settings.auto = false;
-        syncControls();
-      }
-      setMinute(card, entry, f, minute);
-      fillFollowingDays(entry);
-      renderDays();
-      updateResults();
-      persist();
-    };
-    target.addEventListener("pointermove", move);
-    target.addEventListener("pointerup", finish);
-    target.addEventListener("pointercancel", finish);
-    target.addEventListener("lostpointercapture", finish);
-  });
   root.addEventListener("input", (event) => {
     const target = event.target as HTMLInputElement;
     activateWorkerFromTarget(target);
@@ -632,7 +581,12 @@ export async function start() {
       copiedSnapshot = "";
       updateCopiedState();
     }
-    if (target.dataset.content) {
+    if (target.dataset.durationDate) {
+      const date = target.dataset.durationDate;
+      card.durationBreaks![date][Number(target.dataset.durationIndex)] = target.value === "" ? NaN : Number(target.value);
+      setFieldError(target, Number.isInteger(Number(target.value)) && target.value !== "" && Number(target.value) >= 0 && Number(target.value) <= 1439 ? "" : "Enter whole minutes from 0 to 1439.");
+      updateResults(); persist();
+    } else if (target.dataset.content) {
       (card.content ??= {})[target.dataset.content] = target.value;
       updateResults();
       persist();
@@ -691,11 +645,6 @@ export async function start() {
       if (copied || movedBreak) renderDays();
       updateResults();
       persist();
-      const track = target.closest(".day")?.querySelector(".timeline");
-      if (track)
-        track.innerHTML =
-          `<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>` +
-          timeline(card.entries.filter((e) => e.row === entry.row));
     }
   });
   root.addEventListener("change", (event) => {
@@ -883,6 +832,19 @@ export async function start() {
     const target = (event.target as HTMLElement).closest<HTMLElement>("button");
     if (!target) return;
     activateWorkerFromTarget(target);
+    if (target.id === "reset-advanced") {
+      const defaults = createCard(card.anchor);
+      for (const key of ["currency", "format", "showAmPm", "decimalFirst", "defaultSegments", "defaultBreaks"] as const) Object.assign(card, { [key]: defaults[key] });
+      card.visibleFields = { client: false, project: false, content: false };
+      const { rate, overtime, mode, multiplier } = card.settings;
+      card.settings = { ...defaults.settings, rate, overtime, mode, multiplier };
+      for (const employee of card.employees) {
+        const { rate, overtime, mode, multiplier } = employee.settings;
+        employee.settings = { ...defaults.settings, rate, overtime, mode, multiplier };
+      }
+      syncControls(); syncVisibleFields(); renderAllWorkerDays(); persist();
+      return;
+    }
     if (target.id === "add-time-card") {
       if (card.employees.length + 2 > 100) return;
       const previous = employeeCards(card).at(-1)!;
@@ -894,6 +856,7 @@ export async function start() {
       card.client = source.client;
       card.project = source.project;
       card.content = { ...source.content };
+      card.durationBreaks = structuredClone(source.durationBreaks);
       card.entries = source.entries.map(entry => ({
         ...entry,
         id: id(),
@@ -904,7 +867,7 @@ export async function start() {
       return;
     }
     if (target.dataset.removeWorker) {
-      if (removeEmployee(card, target.dataset.removeWorker)) {
+      if (confirm("Delete this time card and its records?") && removeEmployee(card, target.dataset.removeWorker)) {
         renderWorkerCards();
         persist();
       }
@@ -945,8 +908,6 @@ export async function start() {
       target.classList.toggle("am", f.ampm === "AM");
       target.setAttribute("aria-checked", String(f.ampm === "PM"));
       target.querySelector("span")!.textContent = f.ampm;
-      const track = target.closest(".day")?.querySelector(".timeline");
-      if (track) track.innerHTML = `<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>` + timeline(card.entries.filter((e) => e.row === entry.row));
       if (fillFollowingDays(entry)) renderDays();
       updateResults();
       persist();
@@ -974,18 +935,19 @@ export async function start() {
       if (next && removed.dailyBreakMinutes !== undefined) next.dailyBreakMinutes = removed.dailyBreakMinutes;
       if (next) fillFollowingDays(next);
     }
-    else if (target.dataset.breakDate) {
-      card.settings.auto = false;
-      syncControls();
-      const date = target.dataset.breakDate;
-      stopRowSync(date);
-      card.emptyRows = card.emptyRows?.filter((key) => key !== `${card.selectedEmployee}:${date}`);
-      const entry = card.entries.find((e) => e.id === target.dataset.addBreak) ?? addEntry(card, date, id());
-      const rest = { id: id(), start: field(), end: field(), paid: false };
-      setMinute(card, entry, rest.start, 720);
-      setMinute(card, entry, rest.end, 750);
-      entry.breaks.push(rest);
-      fillFollowingDays(entry);
+    else if (target.dataset.breakDate || target.dataset.bulkBreak || target.dataset.deleteDuration) {
+      const dates = target.dataset.bulkBreak ? cardPeriod(card).dates.filter(date => dayNumber(date) >= cardPeriod(card).start && dayNumber(date) < cardPeriod(card).end) : [target.dataset.breakDate ?? target.dataset.deleteDuration!];
+      for (const date of dates) {
+        const legacy = card.entries.filter(entry => entry.row === date).reduce((sum, entry) => sum + (entry.dailyBreakMinutes ?? 0), 0);
+        const values = card.durationBreaks?.[date] ?? (legacy ? [legacy] : []);
+        const hasInterval = card.entries.some(entry => entry.row === date && entry.breaks.some(rest => rest.start.value !== null && rest.end.value !== null && rest.start.value !== rest.end.value));
+        if (target.dataset.bulkBreak && (values.some(value => value > 0) || hasInterval)) continue;
+        card.durationBreaks ??= {};
+        card.durationBreaks[date] = [...values];
+        if (target.dataset.deleteDuration) card.durationBreaks[date].splice(Number(target.dataset.durationIndex), 1);
+        else card.durationBreaks[date].push(30);
+        stopRowSync(date);
+      }
     } else if (target.dataset.removeBreak) {
       card.settings.auto = false;
       syncControls();
@@ -1061,11 +1023,11 @@ export async function start() {
             if (
               template &&
               confirm(
-                `Apply these settings? ${JSON.stringify(template.values)} ${JSON.stringify(template.settings)}`,
+                template.draft ? `Replace all current cards and settings with template "${template.name}"? ${employeeCards(template.draft).length} cards, ${employeeCards(template.draft).reduce((sum, employee) => sum + employee.entries.length, 0)} work records. Hourly rate: ${template.draft.settings.rate === null ? "unset" : template.draft.settings.rate / 100}.` : `Apply these settings? ${JSON.stringify(template.values)} ${JSON.stringify(template.settings)}`,
               )
             ) {
               applyTemplate(card, template);
-              renderAllWorkerDays();
+              renderWorkerCards();
               persist();
             }
           } catch (error) {
@@ -1230,34 +1192,6 @@ export async function start() {
     if (changed) {
       renderDays();
       persist();
-    }
-  });
-  root.addEventListener("keydown", (event) => {
-    const e = event as KeyboardEvent;
-    const target = e.target as HTMLElement;
-    activateWorkerFromTarget(target);
-    if (target.dataset.handle && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
-      e.preventDefault();
-      const { entry, f } = locate(target);
-      stopRowSync(entry.row);
-      if (target.dataset.handle?.startsWith("b")) {
-        card.settings.auto = false;
-        syncControls();
-      }
-      setMinute(
-        card,
-        entry,
-        f,
-        (f.value! + (e.key === "ArrowRight" ? 5 : 1435)) % 1440,
-      );
-      fillFollowingDays(entry);
-      renderDays();
-      persist();
-      days
-        .querySelector<HTMLElement>(
-          `[data-entry="${entry.id}"][data-handle="${target.dataset.handle}"]`,
-        )
-        ?.focus();
     }
   });
   document.querySelector<HTMLSelectElement>("#preset")!.value = routePreset(

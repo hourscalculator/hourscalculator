@@ -1,6 +1,7 @@
-export type Break = { id?: string; start: number; end: number; paid: boolean };
+export type Break = { id?: string; start: number; end: number; paid: boolean; duration?: boolean };
 export type FieldIssue = { segmentId: string; field: "start" | "end"; breakId?: string; message: string };
 export type Segment = {
+  suppressAutomatic?: boolean;
   id: string;
   date: string;
   start: number;
@@ -59,7 +60,7 @@ export function calculate(segments: Segment[], settings: Settings) {
   function mark(segmentId: string, message: string, breakId?: string, fields: ("start" | "end")[] = ["start", "end"]) {
     for (const field of fields) issues.push({ segmentId, field, breakId, message });
   }
-  const days = new Map<number, { minutes: number; manual: number }>();
+  const days = new Map<number, { minutes: number; manual: number; suppressAutomatic?: boolean }>();
   const intervals: { start: number; end: number; id: string }[] = [];
   for (const segment of segments) {
     if (
@@ -107,12 +108,13 @@ export function calculate(segments: Segment[], settings: Settings) {
         start: a,
         end: a + ((b.end - b.start + 1440) % 1440),
         paid: b.paid,
+        duration: b.duration,
       };
     });
     breaks.forEach((b, index) => {
       const startOutside = b.start < start || b.start > end;
       const endOutside = b.end > end || b.end < start;
-      const conflicts = breaks.slice(0, index).filter((a) => a.start < b.end && a.end > b.start);
+      const conflicts = breaks.slice(0, index).filter((a) => a.start < b.end && a.end > b.start && !((a.duration && b.paid) || (b.duration && a.paid)));
       if (startOutside || endOutside || conflicts.length) {
         errors.push(`${segment.id}: invalid break`);
         if (startOutside) mark(segment.id, "Break start must fall within this work period.", b.id, ["start"]);
@@ -138,6 +140,7 @@ export function calculate(segments: Segment[], settings: Settings) {
       days.set(day, {
         minutes: previous.minutes + boundary - cursor - unpaid,
         manual: previous.manual + unpaid,
+        suppressAutomatic: previous.suppressAutomatic || segment.suppressAutomatic,
       });
       cursor = boundary;
     }
@@ -148,7 +151,7 @@ export function calculate(segments: Segment[], settings: Settings) {
     .map(([day, value]) => {
       let minutes = value.minutes;
       const automaticDeduction =
-        settings.auto && minutes + value.manual >= settings.threshold
+        settings.auto && !value.suppressAutomatic && minutes + value.manual >= settings.threshold
           ? Math.max(0, settings.deduction - value.manual)
           : 0;
       minutes -= automaticDeduction;

@@ -140,6 +140,7 @@ test('browser storage refusal reports draft and template save failures', async (
   await openDetailed(page);
   await page.locator('[data-card="name"]').fill('Unsaved worker');
   await expect(page.locator('#save-status')).toContainText('Save failed');
+  await page.locator('#settings').evaluate(element => { (element as HTMLDetailsElement).open = true; });
   await page.locator('summary').filter({ hasText: 'Templates and approval receipts' }).click();
   await page.locator('#template-name').fill('Unsaved template');
   await page.locator('#save-template').click();
@@ -161,6 +162,7 @@ test("restored templates and approval lifecycle", async ({ page, browserName }) 
   await page.evaluate(c => localStorage.setItem("time-card-v1", JSON.stringify(c)), card);
   await page.reload();
   const open = async () => {
+    await page.locator("#settings").evaluate(element => { (element as HTMLDetailsElement).open = true; });
     const summary = page.locator("summary").filter({ hasText: "Templates and approval receipts" });
     if (!(await summary.evaluate(e => e.parentElement!.hasAttribute("open")))) await summary.click();
   };
@@ -174,8 +176,10 @@ test("restored templates and approval lifecycle", async ({ page, browserName }) 
   page.once("dialog", d => d.dismiss());
   await page.locator("#apply-template").click();
   expect(await page.evaluate(() => localStorage.getItem("time-card-v1"))).toBe(before);
+  await page.locator('[data-card="name"]').fill("Temporary change");
   page.once("dialog", d => d.accept());
   await page.locator("#apply-template").click();
+  await expect(page.locator('[data-card="name"]')).toHaveValue("Worker A");
   await expect(page.locator('[data-card="client"]')).toHaveValue("Client A");
   await page.locator("#readonly-share").click();
   const link = await page.locator("#share-url").inputValue();
@@ -222,6 +226,7 @@ test("template capacity, damaged data and invalid receipts preserve storage", as
     localStorage.setItem("time-card-templates-v1", JSON.stringify(templates));
   }, {c, templates});
   await page.reload();
+  await page.locator("#settings").evaluate(element => { (element as HTMLDetailsElement).open = true; });
   await page.locator("summary").filter({hasText:"Templates and approval receipts"}).click();
   await page.locator("#template-name").fill("Overflow");
   await page.locator("#save-template").click();

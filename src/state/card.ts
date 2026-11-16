@@ -22,6 +22,7 @@ export type Entry = {
   breaks: { id: string; start: Field; end: Field; paid: boolean; automatic?: boolean }[];
 };
 export type Card = {
+  durationBreaks?: Record<string, number[]>;
   hidePeriod?: boolean;
   visibleFields?: { client: boolean; project: boolean; content: boolean };
   content?: Record<string, string>;
@@ -52,6 +53,7 @@ export type Card = {
 };
 export type Employee = Pick<
   Card,
+  | "durationBreaks"
   | "name"
   | "content"
   | "settings"
@@ -83,6 +85,7 @@ export function cardPeriod(card: Card) {
 export function currentEmployee(card: Card): Employee {
   return {
     id: card.selectedEmployee,
+    ...(card.durationBreaks === undefined ? {} : { durationBreaks: card.durationBreaks }),
     content: card.content ?? {},
     name: card.name,
     settings: card.settings,
@@ -110,6 +113,7 @@ export function employeeCards(card: Card) {
       ...card,
       ...employee,
       selectedEmployee: employee.id,
+      durationBreaks: employee.durationBreaks,
       content: employee.content ?? {},
       employees: [],
     }),
@@ -122,7 +126,7 @@ export function selectEmployee(card: Card, employeeId: string) {
   card.employees = card.employees.filter((e) => e.id !== employeeId);
   card.employees.push(previous);
   const { id, ...values } = next;
-  Object.assign(card, values, { selectedEmployee: id, content: next.content ?? {} });
+  Object.assign(card, values, { selectedEmployee: id, durationBreaks: next.durationBreaks, content: next.content ?? {} });
 }
 export function addEmployee(card: Card, employeeId: string) {
   card.employeeOrder ??= [
@@ -138,6 +142,7 @@ export function addEmployee(card: Card, employeeId: string) {
     client: "",
     project: "",
     entries: [],
+    durationBreaks: undefined,
     confirmed: [],
     settings: {
       ...card.settings,
@@ -207,7 +212,7 @@ export function createCard(today: string): Card {
     length: "1",
     format: "12",
     showAmPm: true,
-    defaultSegments: 2,
+    defaultSegments: 1,
     defaultBreaks: 0,
     settings: {
       mode: "weekly",
@@ -234,13 +239,10 @@ export function addEntry(card: Card, date: string, id: string) {
     end: field(),
     breaks: [],
   };
-  for (let i = 0; i < card.defaultBreaks; i++)
-    entry.breaks.push({
-      id: `${id}-b${i}`,
-      start: field(),
-      end: field(),
-      paid: false,
-    });
+  if (card.defaultBreaks > 0 && !card.entries.some(existing => existing.row === date)) {
+    card.durationBreaks ??= {};
+    card.durationBreaks[date] ??= Array.from({ length: card.defaultBreaks }, () => 30);
+  }
   card.entries.push(entry);
   return entry;
 }
@@ -255,14 +257,10 @@ export function initialize(card: Card, id: () => string) {
     ) {
       for (let i = existing.length; i < card.defaultSegments; i++)
         addEntry(card, date, id());
-      for (const entry of existing)
-        for (let i = entry.breaks.length; i < card.defaultBreaks; i++)
-          entry.breaks.push({
-            id: id(),
-            start: field(),
-            end: field(),
-            paid: false,
-          });
+      if (card.defaultBreaks > 0) {
+        card.durationBreaks ??= {};
+        card.durationBreaks[date] ??= Array.from({ length: card.defaultBreaks }, () => 30);
+      }
     }
   }
 }
@@ -346,6 +344,7 @@ export function getReport(card: Card) {
     const end = fieldValue(e.end)!;
     const breaks: Segment["breaks"] = [];
     for (const b of e.breaks) {
+      if (b.automatic && card.durationBreaks?.[e.row] !== undefined) continue;
       if (
         !b.start.raw &&
         !b.end.raw &&
@@ -362,7 +361,7 @@ export function getReport(card: Card) {
         }
       } else breaks.push({ id: b.id, start: fieldValue(b.start)!, end: fieldValue(b.end)!, paid: b.paid });
     }
-    if (e.dailyBreakMinutes && !card.settings.auto && !e.breaks.some(rest => !rest.automatic && (rest.start.raw || rest.end.raw))) {
+    if (card.durationBreaks?.[e.row] === undefined && e.dailyBreakMinutes && !card.settings.auto && !e.breaks.some(rest => !rest.automatic && (rest.start.raw || rest.end.raw))) {
       breaks.push({ start, end: (start + e.dailyBreakMinutes) % 1440, paid: false });
     }
     segments.push({
@@ -376,6 +375,39 @@ export function getReport(card: Card) {
       end,
       breaks,
     });
+  }
+  for (const [date, values] of Object.entries(card.durationBreaks ?? {})) {
+    const day = dayNumber(date);
+    if (day < range.contextStart || day >= range.contextEnd) continue;
+    if (!Array.isArray(values) || values.some(value => !Number.isInteger(value) || value < 0 || value > 1439)) {
+      draftErrors.push(`${card.name || card.selectedEmployee}: ${date}: invalid duration break`);
+      continue;
+    }
+    let remaining = values.reduce((sum, value) => sum + value, 0);
+    const work = segments.filter(segment => card.entries.find(entry => entry.id === segment.id)?.row === date)
+      .sort((a, b) => dayNumber(a.date) * 1440 + a.start - dayNumber(b.date) * 1440 - b.start);
+    for (const segment of work) {
+      segment.suppressAutomatic = true;
+      const length = (segment.end - segment.start + 1440) % 1440;
+      let runStart: number | null = null;
+      for (let offset = 0; offset <= length; offset++) {
+        const minute = (segment.start + offset) % 1440;
+        const unpaid = segment.breaks.some(rest => !rest.paid && (minute - rest.start + 1440) % 1440 < (rest.end - rest.start + 1440) % 1440);
+        const deduct = offset < length && remaining > 0 && !unpaid;
+        if (deduct) {
+          if (runStart === null) runStart = offset;
+          remaining--;
+        } else if (runStart !== null) {
+          segment.breaks.push({ start: (segment.start + runStart) % 1440, end: minute, paid: false, duration: true });
+          runStart = null;
+        }
+      }
+    }
+    if (work.length && remaining > 0) {
+      const message = `${card.name || card.selectedEmployee}: ${date}: duration breaks exceed work minutes`;
+      draftErrors.push(message);
+      draftIssues.push({ segmentId: work[0].id, field: "end", message });
+    }
   }
   const settings = card.settings;
   let result = report(segments, settings, range, range.dates, card.billing);

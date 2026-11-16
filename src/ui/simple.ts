@@ -16,6 +16,7 @@ type Options = { onDelivery:(action: 'print'|'csv'|'share')=>Promise<void>;
     blocked: () => boolean;
 };
 export function mountSimple(options: Options) {
+    const parseVisibleTime = (raw: string, meridiem?: string) => parseTime(raw, card().format === '12' && card().showAmPm ? meridiem : undefined);
     const key = 'time-card-simple-ui-v1';
     const home = document.createElement('section');
     home.id = 'simple-home';
@@ -62,7 +63,15 @@ export function mountSimple(options: Options) {
                 if (meta.step === 2) { entry.start = structuredClone(input.start); entry.end = structuredClone(input.end); }
                 else { entry.breaks = structuredClone(input.breaks); entry.dailyBreakMinutes = input.dailyBreakMinutes; }
             }
-            if (meta.step === 3) confirmed.settings.auto = draft.settings.auto;
+            if (meta.step === 3) {
+                confirmed.settings.auto = draft.settings.auto;
+                for (const date of dates) {
+                    if (draft.durationBreaks?.[date] !== undefined) {
+                        confirmed.durationBreaks ??= {};
+                        confirmed.durationBreaks[date] = structuredClone(draft.durationBreaks[date]);
+                    }
+                }
+            }
         } else {
             confirmed.name = draft.name;
             confirmed.anchor = draft.anchor;
@@ -227,7 +236,7 @@ export function mountSimple(options: Options) {
         const entry = card().entries.find(entry => entry.row === date);
         const value = date ? entry![kind] : meta[kind === 'start' ? 'defaultStart' : 'defaultEnd'];
         const label = kind === 'start' ? 'Clock In' : 'Clock Out';
-        return `<label class="time-field"><span class="time-field-heading"><span>${label}</span></span><span class="time-control"><input aria-label="${label}${date ? ' ' + date : ''}" data-time="${kind}" data-date="${date}" value="${escape(value.raw)}" inputmode="text" placeholder="8:00"><button type="button" class="meridiem ${value.ampm.toLowerCase()}" role="switch" aria-checked="${value.ampm === 'PM'}" aria-label="${label} PM${date ? ' ' + date : ''}" data-ampm="${kind}" data-date="${date}" value="${value.ampm}"><span>${value.ampm}</span></button></span></label>`;
+        return `<label class="time-field"><span class="time-field-heading"><span>${label}</span></span><span class="time-control"><input aria-label="${label}${date ? ' ' + date : ''}" data-time="${kind}" data-date="${date}" value="${escape(date && entry![kind].value !== null ? displayTime(entry![kind].value!, card()) : value.raw)}" inputmode="text" placeholder="8:00"><button ${card().format === "24" || !card().showAmPm ? "hidden" : ""} type="button" class="meridiem ${value.ampm.toLowerCase()}" role="switch" aria-checked="${value.ampm === 'PM'}" aria-label="${label} PM${date ? ' ' + date : ''}" data-ampm="${kind}" data-date="${date}" value="${value.ampm}"><span>${value.ampm}</span></button></span></label>`;
     }
     function applyPeriod(start: string, end: string) {
         const previous = cardPeriod(card());
@@ -258,10 +267,10 @@ export function mountSimple(options: Options) {
             for (const kind of ['start','end'] as const) {
                 const input = dialog.querySelector<HTMLInputElement>(`[data-time="${kind}"][data-date=""]`)!;
                 const ampm = dialog.querySelector<HTMLButtonElement>(`[data-ampm="${kind}"][data-date=""]`)!.value;
-                invalid ||= parseTime(input.value,ampm) === null;
+                invalid ||= parseVisibleTime(input.value,ampm) === null;
             }
-            const start = parseTime(meta.defaultStart.raw,meta.defaultStart.ampm);
-            const end = parseTime(meta.defaultEnd.raw,meta.defaultEnd.ampm);
+            const start = parseVisibleTime(meta.defaultStart.raw,meta.defaultStart.ampm);
+            const end = parseVisibleTime(meta.defaultEnd.raw,meta.defaultEnd.ampm);
             invalid ||= start === end;
         }
         for (const input of dialog.querySelectorAll<HTMLInputElement>('input[data-break]')) {
@@ -278,7 +287,7 @@ export function mountSimple(options: Options) {
     function renderDialog() {
         const title = ['Which days do you work?', 'What time do you start and finish?', 'Do you take a lunch or break?', 'Add some optional information?'][meta.step - 1];
         dialog.setAttribute('aria-label', title);
-        dialog.innerHTML = `<div class="simple-dialog-heading"><div><div class="simple-progress" aria-label="Step ${meta.step} of 4">${[1,2,3,4].map(step=>`<span class="${step <= meta.step ? 'active' : ''}"></span>`).join('')}</div><div class="dialog-title" tabindex="-1">${title}</div></div><button type="button" data-action="close" aria-label="Close wizard">×</button></div><div class="simple-dialog-body">${meta.step === 1 ? `<div class="simple-work-days">${simpleDates(card()).map(date => `<label><input type="checkbox" aria-label="${dateLabel(date)}" data-day="${date}"${card().entries.some(entry => entry.row === date) ? ' checked' : ''}><span class="simple-day-letter" aria-hidden="true">${new Date(`${date}T12:00:00`).toLocaleDateString('en-US',{weekday:'short'})}</span><span class="simple-day-mark" aria-hidden="true"></span><small aria-hidden="true">${new Date(`${date}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</small></label>`).join('')}</div>` : meta.step === 2 ? `<div class="simple-time-fields"${meta.dailyTimesSelected ? ' hidden' : ''}>${timeInputs('start')}${timeInputs('end')}</div><p class="simple-quick-entry">Quick entry: 800 means 8:00.</p><details data-custom-times${meta.customizeTimes ? ' open' : ''}><summary>Do your hours vary by day? Click here to expand and customize</summary>${`<table class="summary-table"><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead><tbody>${card().entries.filter(entry => simpleDates(card()).includes(entry.row)).map(entry => `<tr><th>${dateLabel(entry.row)}</th><td>${timeInputs('start',entry.row)}</td><td>${timeInputs('end',entry.row)}</td></tr>`).join('')}</tbody></table>`}</details>` : meta.step === 3 ? `<p>Unpaid break minutes are deducted from your work hours.</p><fieldset class="simple-break-options"><legend>How long is your unpaid lunch/break?</legend>${[0,30,60,-1].map(minutes=>`<label><input type="radio" name="simple-break" data-break-preset value="${minutes}"${(minutes===-1 ? meta.customBreakSelected : !meta.customBreakSelected && minutes===meta.defaultBreak)?' checked':''}>${minutes===0?'No break':minutes===30?'30 minutes':minutes===60?'1 hour':'Custom'}</label>`).join('')}</fieldset><label${!meta.customBreakSelected ? ' hidden' : ''} data-custom-break>Break minutes<input data-break="" type="number" min="0" max="1439" value="${meta.defaultBreak}"></label><details data-custom-breaks${dailyBreaks ? ' open' : ''}><summary>Does your break vary by day? Click here to expand and customize</summary>${`<table class="summary-table"><thead><tr><th>Day</th><th>In</th><th>Out</th><th>Break minutes</th></tr></thead><tbody>${card().entries.filter(entry => simpleDates(card()).includes(entry.row)).map(entry => `<tr><th>${dateLabel(entry.row)}</th><td>${escape(entry.start.raw)} ${entry.start.ampm}</td><td>${escape(entry.end.raw)} ${entry.end.ampm}</td><td><input aria-label="Break minutes ${entry.row}" data-break="${entry.row}" type="number" min="0" max="1439" value="${simpleBreakMinutes(card(), entry)}"></td></tr>`).join('')}</tbody></table>`}</details>` : `<div class="simple-optional-fields"><label><span class="field-label">Name <span class="optional">optional</span></span><input data-simple-name maxlength="200" value="${escape(card().name)}"></label><div class="simple-period"><span class="field-label">Period <span class="optional">optional</span></span><button type="button" data-action="period" aria-label="Choose period dates" class="date-range-control"><span data-simple-period-label>${card().hidePeriod ? "Choose dates (optional)" : `${simpleDates(card())[0]} – ${simpleDates(card()).at(-1)}`}</span></button><button type="button" data-action="clear-period">Clear period</button></div><div data-simple-rate-settings></div></div>`}<button type="button" class="simple-detailed-link" data-action="detailed">Work an irregular schedule? Click here to open Detailed Calculator</button><p id="simple-errors" role="alert"></p></div><footer><button type="button" data-action="back"${meta.step === 1 ? ' disabled' : ''}><span aria-hidden="true">← </span>Back</button><button type="button" class="primary" data-action="next">${meta.step === 4 ? 'Calculate Hours' : 'Continue <span aria-hidden="true"> →</span>'}</button></footer>`;
+        dialog.innerHTML = `<div class="simple-dialog-heading"><div><div class="simple-progress" aria-label="Step ${meta.step} of 4">${[1,2,3,4].map(step=>`<span class="${step <= meta.step ? 'active' : ''}"></span>`).join('')}</div><div class="dialog-title" tabindex="-1">${title}</div></div><button type="button" data-action="close" aria-label="Close wizard">×</button></div><div class="simple-dialog-body">${meta.step === 1 ? `<div class="simple-work-days">${simpleDates(card()).map(date => `<label><input type="checkbox" aria-label="${dateLabel(date)}" data-day="${date}"${card().entries.some(entry => entry.row === date) ? ' checked' : ''}><span class="simple-day-letter" aria-hidden="true">${new Date(`${date}T12:00:00`).toLocaleDateString('en-US',{weekday:'short'})}</span><span class="simple-day-mark" aria-hidden="true"></span><small aria-hidden="true">${new Date(`${date}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</small></label>`).join('')}</div>` : meta.step === 2 ? `<div class="simple-time-fields"${meta.dailyTimesSelected ? ' hidden' : ''}>${timeInputs('start')}${timeInputs('end')}</div><p class="simple-quick-entry">Quick entry: 800 means 8:00.</p><details data-custom-times${meta.customizeTimes ? ' open' : ''}><summary>Do your hours vary by day? Click here to expand and customize</summary>${`<table class="summary-table"><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead><tbody>${card().entries.filter(entry => simpleDates(card()).includes(entry.row)).map(entry => `<tr><th>${dateLabel(entry.row)}</th><td>${timeInputs('start',entry.row)}</td><td>${timeInputs('end',entry.row)}</td></tr>`).join('')}</tbody></table>`}</details>` : meta.step === 3 ? `<p>Unpaid break minutes are deducted from your work hours.</p><fieldset class="simple-break-options"><legend>How long is your unpaid lunch/break?</legend>${[0,30,60,-1].map(minutes=>`<label><input type="radio" name="simple-break" data-break-preset value="${minutes}"${(minutes===-1 ? meta.customBreakSelected : !meta.customBreakSelected && minutes===meta.defaultBreak)?' checked':''}>${minutes===0?'No break':minutes===30?'30 minutes':minutes===60?'1 hour':'Custom'}</label>`).join('')}</fieldset><label${!meta.customBreakSelected ? ' hidden' : ''} data-custom-break>Break minutes<input data-break="" type="number" min="0" max="1439" value="${meta.defaultBreak}"></label><details data-custom-breaks${dailyBreaks ? ' open' : ''}><summary>Does your break vary by day? Click here to expand and customize</summary>${`<table class="summary-table"><thead><tr><th>Day</th><th>In</th><th>Out</th><th>Break minutes</th></tr></thead><tbody>${card().entries.filter(entry => simpleDates(card()).includes(entry.row)).map(entry => `<tr><th>${dateLabel(entry.row)}</th><td>${escape(entry.start.value === null ? entry.start.raw : displayTime(entry.start.value, card()))}${card().format === "12" && card().showAmPm ? ` ${entry.start.ampm}` : ""}</td><td>${escape(entry.end.value === null ? entry.end.raw : displayTime(entry.end.value, card()))}${card().format === "12" && card().showAmPm ? ` ${entry.end.ampm}` : ""}</td><td><input aria-label="Break minutes ${entry.row}" data-break="${entry.row}" type="number" min="0" max="1439" value="${simpleBreakMinutes(card(), entry)}"></td></tr>`).join('')}</tbody></table>`}</details>` : `<div class="simple-optional-fields"><label><span class="field-label">Name <span class="optional">optional</span></span><input data-simple-name maxlength="200" value="${escape(card().name)}"></label><div class="simple-period"><span class="field-label">Period <span class="optional">optional</span></span><button type="button" data-action="period" aria-label="Choose period dates" class="date-range-control"><span data-simple-period-label>${card().hidePeriod ? "Choose dates (optional)" : `${simpleDates(card())[0]} – ${simpleDates(card()).at(-1)}`}</span></button><button type="button" data-action="clear-period">Clear period</button></div><div data-simple-rate-settings></div></div>`}<button type="button" class="simple-detailed-link" data-action="detailed">Work an irregular schedule? Click here to open Detailed Calculator</button><p id="simple-errors" role="alert"></p></div><footer><button type="button" data-action="back"${meta.step === 1 ? ' disabled' : ''}><span aria-hidden="true">← </span>Back</button><button type="button" class="primary" data-action="next">${meta.step === 4 ? 'Calculate Hours' : 'Continue <span aria-hidden="true"> →</span>'}</button></footer>`;
         if(meta.step===4) {
           const controls=document.querySelector<HTMLElement>('#calculator .rate-settings')!.cloneNode(true) as HTMLElement;
           const rate=controls.querySelector<HTMLInputElement>('[data-setting="rate"]')!;
@@ -321,7 +330,7 @@ export function mountSimple(options: Options) {
             const kind = (target.dataset.time || target.dataset.ampm) as 'start' | 'end', date = target.dataset.date || '';
             const input = dialog.querySelector<HTMLInputElement>(`[data-time="${kind}"][data-date="${date}"]`)!;
             const ampm = dialog.querySelector<HTMLSelectElement>(`[data-ampm="${kind}"][data-date="${date}"]`)!.value;
-            setFieldError(input, parseTime(input.value,ampm) === null ? (input.value.trim() ? 'Enter a valid time.' : 'Enter a time.') : '');
+            setFieldError(input, parseVisibleTime(input.value,ampm) === null ? (input.value.trim() ? 'Enter a valid time.' : 'Enter a time.') : '');
             if (date)
                 setSimpleDayTime(card(), meta, date, kind, input.value, ampm);
             else if (meta.dailyTimesSelected) {
@@ -361,7 +370,7 @@ export function mountSimple(options: Options) {
           const end=dialog.querySelector<HTMLInputElement>(`[data-time="end"][data-date="${date}"]`)!;
           const startAm=dialog.querySelector<HTMLButtonElement>(`[data-ampm="start"][data-date="${date}"]`)!.value;
           const endAm=dialog.querySelector<HTMLButtonElement>(`[data-ampm="end"][data-date="${date}"]`)!.value;
-          const startMinute=parseTime(start.value,startAm),endMinute=parseTime(end.value,endAm);
+          const startMinute=parseVisibleTime(start.value,startAm),endMinute=parseVisibleTime(end.value,endAm);
           if((date || !meta.dailyTimesSelected) && startMinute!==null && endMinute!==null) setFieldError(end,startMinute===endMinute?'Clock Out must differ from Clock In.':'');
         }
         changed();
@@ -381,9 +390,9 @@ export function mountSimple(options: Options) {
         const kind=input.dataset.time as 'start'|'end';
         const date=input.dataset.date||'';
         const ampm=dialog.querySelector<HTMLButtonElement>(`[data-ampm="${kind}"][data-date="${date}"]`)!.value;
-        const minute=parseTime(input.value,ampm);
+        const minute=parseVisibleTime(input.value,ampm);
         if(minute!==null) {
-          input.value=displayTime(minute,{...card(),format:'12',showAmPm:true});
+          input.value=displayTime(minute,card());
           if(!date && !meta.dailyTimesSelected) meta[kind==='start'?'defaultStart':'defaultEnd'].raw=input.value;
           store();
         }
@@ -434,7 +443,7 @@ export function mountSimple(options: Options) {
               for(const input of dialog.querySelectorAll<HTMLInputElement>('input[data-time]')) {
                 if(meta.dailyTimesSelected ? !input.dataset.date : Boolean(input.dataset.date)) { setFieldError(input, ''); continue; }
                 const ampm=dialog.querySelector<HTMLButtonElement>(`[data-ampm="${input.dataset.time}"][data-date="${input.dataset.date}"]`)!.value;
-                setFieldError(input,parseTime(input.value,ampm)===null?'Enter a valid time.':'');
+                setFieldError(input,parseVisibleTime(input.value,ampm)===null?'Enter a valid time.':'');
               }
             }
             if (errors.length) {

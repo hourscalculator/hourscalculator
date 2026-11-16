@@ -74,7 +74,7 @@ test("v1 migrates and complete v2 shares roundtrip", async () => {
   expect(restored.currency).toBe("EUR");
   expect(getTableReport(restored).employees).toHaveLength(2);
 });
-test("templates exclude identity, records and fixed amount, receipts bind content", async () => {
+test("legacy rules templates retain identity and records, receipts bind content", async () => {
   const c = createCard("2026-11-09");
   c.name = "Private";
   c.client = "Client";
@@ -82,6 +82,7 @@ test("templates exclude identity, records and fixed amount, receipts bind conten
   c.settings.rate = 1234;
   shift(c, c.anchor, "a");
   const template = makeTemplate(c, "Rules", "t");
+  delete template.draft;
   expect(JSON.stringify(template)).not.toContain("Private");
   const target = createCard(c.anchor);
   target.name = "Keep";
@@ -114,4 +115,37 @@ test("a new employee cannot inherit an existing fixed invoice amount", () => {
   c.settings.rate = 12345;
   addEmployee(c, "new");
   expect(c.settings.rate).toBeNull();
+});
+
+test('duration breaks participate in stable employee snapshot identity', async () => {
+  const { addEmployee, selectEmployee } = await import('../../src/state/card');
+  const card = createCard('2026-11-16');
+  card.durationBreaks = { [card.anchor]: [30] };
+  addEmployee(card, 'second');
+  const before = await snapshotId(card);
+  selectEmployee(card, 'primary');
+  expect(await snapshotId(card)).toBe(before);
+  card.durationBreaks![card.anchor].push(15);
+  expect(await snapshotId(card)).not.toBe(before);
+});
+
+test('full draft template restores recorded cards and rate independently', () => {
+  const card = createCard('2026-11-16');
+  card.name = 'Saved worker'; card.settings.rate = 2500;
+  card.durationBreaks = { [card.anchor]: [15, 30] };
+  shift(card, card.anchor, 'first', 480);
+  addEmployee(card, 'second');
+  card.name = 'Second'; card.settings.rate = 3000;
+  card.durationBreaks = { [card.anchor]: [30] };
+  shift(card, card.anchor, 'second', 480);
+  selectEmployee(card, 'primary');
+  const template = makeTemplate(card, 'Full draft', 'full');
+  card.name = 'Changed'; card.settings.rate = 1000;
+  card.durationBreaks[card.anchor].push(60);
+  applyTemplate(card, template);
+  expect(card.name).toBe('Saved worker');
+  expect(card.settings.rate).toBe(2500);
+  expect(card.durationBreaks[card.anchor]).toEqual([15, 30]);
+  expect(getTableReport(card).total).toBe(885);
+  expect(getTableReport(card).pay).toBe(40625);
 });
