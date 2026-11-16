@@ -129,3 +129,25 @@ assert.equal((article(decimalPage).match(/<tbody>([\s\S]*?)<\/tbody>/)[1].match(
 assert.match(html, /id="biweekly"[^>]*[^]*?Report period/);
 assert.match(html, /id="lunch"/);
 assert.equal((sitemap.match(/<lastmod>2026-11-15<\/lastmod>/g)||[]).length,6);
+
+// Default production identity must propagate through the generated pages.
+const expectedOrigin = process.env.SITE_URL || "https://punchcardcalculator.com";
+for (const path of sitemapPaths) {
+  const page = readFileSync(`dist/${path ? path + "/" : ""}index.html`, "utf8");
+  const expectedUrl = `${new URL(expectedOrigin).origin}/${path ? path + "/" : ""}`;
+  assert.ok(page.includes(`rel="canonical" href="${expectedUrl}"`));
+  assert.ok(page.includes(`property="og:url" content="${expectedUrl}"`));
+  assert.ok(page.includes(`property="og:image" content="${new URL(expectedOrigin).origin}/og-image.png"`));
+  assert.ok(page.includes('property="og:site_name" content="Punch Card Calculator"'));
+  assert.ok(page.includes('<footer>Punch Card Calculator'));
+  for (const [, json] of page.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)) {
+    const checkUrls = value => {
+      if (!value || typeof value !== "object") return;
+      for (const [key, child] of Object.entries(value)) {
+        if (key === "url" || key === "item") assert.ok(child.startsWith(new URL(expectedOrigin).origin + "/"));
+        else checkUrls(child);
+      }
+    };
+    checkUrls(JSON.parse(json));
+  }
+}

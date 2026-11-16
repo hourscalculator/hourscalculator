@@ -1,15 +1,17 @@
 import { topics, relatedPages } from "./src/seo/content";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { defineConfig } from "vite";
+const SITE_URL = process.env.SITE_URL || "https://punchcardcalculator.com";
+
 function social(html: string) {
   const url = html.match(/rel="canonical" href="([^"]+)"/)![1];
   const title = html.match(/<title>(.*?)<\/title>/)![1];
   const description = html.match(/name="description"\s+content="([^"]+)"/)![1];
   const origin = new URL(url).origin;
-  return html.replace(/<link data-social[\s\S]*?<!-- social-end -->/g, "").replace("</head>", `<link data-social rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="robots" content="index,follow,max-image-preview:large"><meta property="og:type" content="website"><meta property="og:site_name" content="Hours Calculator"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${url}"><meta property="og:image" content="${origin}/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${origin}/og-image.png"><!-- social-end --></head>`);
+  return html.replace(/<link data-social[\s\S]*?<!-- social-end -->/g, "").replace("</head>", `<link data-social rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="robots" content="index,follow,max-image-preview:large"><meta property="og:type" content="website"><meta property="og:site_name" content="Punch Card Calculator"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${url}"><meta property="og:image" content="${origin}/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${origin}/og-image.png"><!-- social-end --></head>`);
 }
 export default defineConfig(() => {
-  const raw = process.env.SITE_URL || "https://hourscalculator.io";
+  const raw = SITE_URL;
   const origin = raw ? new URL(raw).origin : "";
   if (raw && (!/^https?:\/\//.test(raw) || new URL(raw).pathname !== "/"))
     throw Error("SITE_URL must be an HTTP(S) origin");

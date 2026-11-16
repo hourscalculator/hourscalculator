@@ -15,7 +15,7 @@ Run `npm run typecheck`, `npm run test:unit`, `SITE_URL=https://example.test npm
 1. Connect this repository to a Cloudflare Workers project.
 2. Set the build command to `npm run build` and deploy command to `npx wrangler deploy`.
 3. Use Node 22. `wrangler.jsonc` configures `dist` as the static asset directory.
-4. The build defaults to `https://hourscalculator.io`, the planned domain. Set the build environment variable `SITE_URL` to override it. Rebuild when the public domain changes so canonical, sitemap and robots use the correct origin.
+4. The build defaults to the production origin defined by the `SITE_URL` constant in `vite.config.ts`. Set the build environment variable `SITE_URL` to override it. Rebuild when the public domain changes so canonical, sitemap and robots use the correct origin.
 5. Register the domain and bind it to the Worker in Cloudflare before using that address. Inspect the Workers deployment URL after deployment.
 
 The app uses static files and browser storage. Name and time data enter a URL fragment only when the user creates a share snapshot. Anyone with that snapshot link can read its data. The app has no backend. Production publication and Git commits are outside this execution contract.
