@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "quick-fill.prd.md",
+                "file": "detail.prd.md",
                 "mode": "source",
                 "source": false
               }
@@ -85,7 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "quick-fill.prd.md",
+                "file": "detail.prd.md",
                 "collapseAll": true,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -102,7 +102,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "quick-fill.prd.md",
+                "file": "detail.prd.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -125,7 +125,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "quick-fill.prd.md"
+                "file": "detail.prd.md"
               }
             }
           }
@@ -148,6 +148,8 @@
   },
   "active": "4f5b3a312b9fba3b",
   "lastOpenFiles": [
+    "Pasted image 20261116105715.png",
+    "quick-fill.prd.md",
     "detail.prd.md",
     "README.md",
     "report.prd.md"

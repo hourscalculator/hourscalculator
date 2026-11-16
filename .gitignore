@@ -3,4 +3,5 @@ dist/
 test-results/
 playwright-report/
 *.png
+!public/og-image.png
 *.pdf

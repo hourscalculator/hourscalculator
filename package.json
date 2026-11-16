@@ -11,7 +11,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
-    "build": "vite build && node scripts/generate-og-image.mjs",
+    "build": "vite build",
     "test:e2e": "playwright test",
     "test:seo": "node scripts/seo.mjs",
     "test:og": "node scripts/test-og-image.mjs"

@@ -164,3 +164,37 @@
 | 快捷链接 | 连加两张卡后，shortcuts 每条链接都跳到对应的唯一控件 | Playwright |
 
 先扩展 `tests/e2e/workflows.spec.ts` 使模板无 id 的断言 RED，再最小修改 HTML 与现有 JS 选择器并验证 GREEN。`npx vite build`、`npm run typecheck`、`npm run test:unit`、`git diff --check` 与目标 Playwright 用例在 Chrome、Chromium、WebKit 的验证通过。完整 `npm run test:e2e` 因其他用例失败而中断，剩余测试未运行；测试期间工作区有并行未提交修改，失败归因未隔离。浏览器人工验收待统一完成。
+
+---
+
+# Cloudflare 构建移除 Chromium 依赖
+
+状态：自动执行完成，待统一人工验收。
+
+## 目标与范围
+
+规模：小型。Cloudflare 的干净构建只安装 npm 依赖，没有 Playwright 浏览器；生产构建应直接使用已存在的 OG 图片静态资源，不启动 Chromium。
+
+允许修改：`.gitignore`、`package.json`、`public/og-image.png`、本计划。保留现有图片内容、分享元数据、图片生成模板与脚本、Playwright 测试依赖，以及工作区已有改动。Detail、Quick Fill、Report 的产品行为不变。
+
+## 复用与实现
+
+沿用 Vite 默认 `public/` 资源复制到 `dist/` 的路径。现有 `public/og-image.png` 与本地 `dist/og-image.png` 内容相同，但被 `.gitignore` 忽略；将它纳入版本控制并让生产 `build` 只运行 `vite build`。保留 `scripts/test-og-image.mjs` 作为现有图片产物检查，不新增渲染器或浏览器依赖。
+
+## 验收与验证
+
+| 检查 | 通过标准 | 验证 |
+| --- | --- | --- |
+| 无浏览器构建 | Playwright 浏览器路径不存在时，生产构建仍成功 | `PLAYWRIGHT_BROWSERS_PATH=/tmp/cf-no-browser npm run build` |
+| OG 图片产物 | `dist/og-image.png` 为 1200×630 PNG、小于300KB，九个页面均引用它 | `npm run test:og` |
+| 修改边界 | 保留既有计划及未提交改动；差异仅包含本合同允许文件 | `git status --short`、`git diff --check` |
+
+## 最终验证
+
+- `PLAYWRIGHT_BROWSERS_PATH=/tmp/cf-no-browser npm run build` 在无浏览器路径下通过。
+- `npm run test:og` 通过：图片为 1200×630 PNG，小于300KB，九个页面均引用它。
+- `git diff --check` 通过；既有计划内容及工作区修改保留。未部署 Cloudflare。
+
+## 剩余风险
+
+日后修改 OG HTML 模板时，需运行现有生成脚本并更新 `public/og-image.png`；该脚本仍要求安装 Playwright Chromium。
