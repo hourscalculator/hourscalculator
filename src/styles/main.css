@@ -592,7 +592,7 @@ input::placeholder { color: #859087; font-weight: 400; font-size: 15px; }
 .week > summary { display: none; }
 .day-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
 .day-actions .text-button { border: 1px solid #d5dfd0; border-radius: 24px; background: #f4f7f0; padding: 6px 15px; font-size: 15px; min-height: 44px; }
-.break-details:not(:has(.break-fields, .daily-break)) { display: none; }
+.break-details:not(:has(.break-fields)) { display: none; }
 .meridiem { position: relative; flex: 0 0 76px; padding: 3px; border-radius: 26px; background: #edf3ef; }
 .meridiem span { display: flex; align-items: center; justify-content: center; width: 46px; height: 38px; border-radius: 22px; background: white; color: #276345; box-shadow: 0 1px 4px #23312b20; transition: transform .18s; font-size: 15px; }
 .meridiem.pm { background: #f1edf7; }
@@ -688,9 +688,6 @@ input::placeholder { color: #859087; font-weight: 400; font-size: 15px; }
 .timeline { cursor: default; }
 .day-errors { color: #a23b2c; padding-left: 20px; font-size: 15px; }
 .day-errors:empty { display: none; }
-.daily-break { background: #fce8d6; padding: 10px; border-radius: 6px; margin: 10px 0; }
-.daily-break span { display: flex; gap: 10px; align-items: center; }
-.daily-break input { max-width: 100px; }
 .quick-settings { grid-template-columns: 1fr 1.35fr; }
 .rate-settings .quick-group { display: grid; grid-template-columns: minmax(0,1fr) 1fr; align-items: end; gap: 20px; }
 .rate-settings { margin: 16px 0 24px; }
@@ -712,7 +709,7 @@ input::placeholder { color: #859087; font-weight: 400; font-size: 15px; }
 .entry-table .day-content > .day-heading { grid-column: 1; grid-row: 1; padding-top: 12px; }
 .entry-table .day-content > .timeline { grid-column: 2; grid-row: 1; margin: 0 0 16px; }
 .entry-table .work-fields { background: #edf4fc; }
-.entry-table .break-fields, .entry-table .daily-break { background: #edf6e9; }
+.entry-table .break-fields { background: #edf6e9; }
 .entry-table .day-actions [data-add-break] { background: #edf6e9; border-color: #cbdcc1; }
 .entry-table .day-actions .text-button { background: #edf4fc; }
 .entry-table .week-total { background: white; }
@@ -1027,9 +1024,13 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
 @media (max-width: 600px) {
   .entry-table .work-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px; }
 }
-.duration-group { display: flex; align-items: end; gap: 4px; }
-.duration-group label { min-width: 0; flex: 1; }
-.duration-group button { flex: none; }
+.entry-table .duration-group { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 8px; max-width: 220px; margin-bottom: 8px; padding: 8px; border-radius: 8px; background: #edf6e9; }
+.entry-table .duration-group label { min-width: 0; }
+.entry-table .duration-heading { display: block; margin-bottom: 4px; font-size: 14px; }
+.entry-table .duration-input { display: flex; align-items: center; gap: 5px; }
+.entry-table .duration-input input { flex: 1; width: 100%; min-width: 0; }
+.entry-table .duration-unit { flex: none; font-size: 13px; font-weight: 400; }
+.entry-table .duration-group button { width: 44px; min-height: 44px; padding: 0; white-space: nowrap; }
 [data-bulk-minutes] { width: 65px; }
 .quick-settings .quick-group:has([data-bulk-minutes]) { display: block; }
 .common-settings-title { grid-column: 1 / -1; }
