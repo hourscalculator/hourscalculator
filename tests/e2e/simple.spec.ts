@@ -580,21 +580,23 @@ test('Report daily tables fit mobile and blank break disables Continue', async (
  await page.screenshot({path:test.info().outputPath('Report-daily-breaks-mobile.png')});
 });
 
-test('Report snapshot adoption and local draft choice preserve explicit ownership', async ({page}) => {
+test('Report snapshot links are view-only and replace the local draft', async ({page}) => {
  const {createCard}=await import('../../src/state/card');
  const {encodeShare}=await import('../../src/io/delivery');
  const local=createCard('2026-11-09');local.name='Local worker';
  const shared=createCard('2026-11-09');shared.name='Shared worker';
  const hash=await encodeShare(shared,'report');
  await page.addInitScript(card=>localStorage.setItem('time-card-v1',JSON.stringify(card)),local);
- await page.goto('/#'+hash);
+ await page.goto('/?reportMode=simple'+hash);
  await expect(page.locator('#readonly-report')).toContainText('Shared worker');
- expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).name)).toBe('Local worker');
- await page.getByRole('button',{name:'Keep local draft',exact:true}).click();
- await expect(page.locator('#readonly-view')).toBeHidden();
- expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).name)).toBe('Local worker');
- await page.goto('/#'+hash);
- await page.getByRole('button',{name:'Adopt this time card',exact:true}).click();
- await expect(page.locator('#readonly-view')).toBeHidden();
+ await expect(page.locator('#readonly-view')).toBeVisible();
+ await expect(page.locator('#editor')).toBeHidden();
+ await expect(page.locator('#share-preview')).toBeHidden();
+ await expect(page.locator('#adopt')).toBeHidden();
+ await expect(page.locator('#dismiss')).toBeHidden();
+ await expect(page.locator('#readonly-print')).toBeHidden();
+ await expect(page.locator('#readonly-csv')).toBeHidden();
+ await expect(page.locator('#readonly-view')).not.toHaveAttribute('role','dialog');
+ expect(page.url()).toContain(hash);
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('time-card-v1')!).name)).toBe('Shared worker');
 });

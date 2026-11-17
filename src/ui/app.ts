@@ -1137,11 +1137,11 @@ export async function start() {
           }
           break;
         case "readonly-print":
-          if (readonlyCard && !(simpleSharedReport() ? simpleReport(readonlyCard) : getTableReport(readonlyCard)).errors.length)
+          if (!isReportLink() && readonlyCard && !(simpleSharedReport() ? simpleReport(readonlyCard) : getTableReport(readonlyCard)).errors.length)
             window.print();
           break;
         case "readonly-csv":
-          if (readonlyCard)
+          if (!isReportLink() && readonlyCard)
             try {
               downloadCsv(readonlyCard, simpleSharedReport());
             } catch (error) {
@@ -1210,7 +1210,7 @@ export async function start() {
           await runDelivery(target.id as 'print' | 'csv' | 'share');
           break;
         case "adopt":
-          if (sharePreview) {
+          if (!isReportLink() && sharePreview) {
             card = sharePreview;
             blocked = false;
             sharePreview = null;
@@ -1224,10 +1224,12 @@ export async function start() {
           }
           break;
         case "dismiss":
-          sharePreview = null;
-          document.querySelector("#share-preview")!.setAttribute("hidden", "");
-          history.replaceState(null, "", location.pathname);
-          await previewShare();
+          if (!isReportLink()) {
+            sharePreview = null;
+            document.querySelector("#share-preview")!.setAttribute("hidden", "");
+            history.replaceState(null, "", location.pathname);
+            await previewShare();
+          }
           break;
       }
     }
@@ -1241,18 +1243,31 @@ export async function start() {
   );
   renderWorkerCards();
   document.querySelector("#save-status")!.textContent = message === "Saved on this browser" ? "" : message;
+  function isReportLink() {
+    return location.hash.startsWith("#report=");
+  }
   function simpleSharedReport() {
-    return location.hash.startsWith('#report=') && new URLSearchParams(location.search).get('reportMode') === 'simple';
+    return isReportLink() && new URLSearchParams(location.search).get("reportMode") === "simple";
   }
   async function previewShare() {
     if (location.hash.startsWith("#receipt="))
       document.querySelector<HTMLInputElement>("#receipt-input")!.value = location.href;
     readonlyCard = null;
-    const reportOnly = location.hash.startsWith("#report=");
+    const reportOnly = isReportLink();
     document.body.classList.toggle("report-mode", reportOnly);
     document.querySelector<HTMLElement>("#approval-receipt")!.hidden = reportOnly;
+    document.querySelector<HTMLButtonElement>("#readonly-print")!.hidden = reportOnly;
+    document.querySelector<HTMLButtonElement>("#readonly-csv")!.hidden = reportOnly;
+    const readonlyView = document.querySelector<HTMLElement>("#readonly-view")!;
+    if (reportOnly) {
+      sharePreview = null;
+      readonlyView.removeAttribute("role");
+      document.querySelector<HTMLElement>("#share-preview")!.hidden = true;
+    } else {
+      readonlyView.setAttribute("role", "dialog");
+    }
     document.querySelector<HTMLElement>("#editor")!.hidden = false;
-    document.querySelector<HTMLElement>("#readonly-view")!.hidden = true;
+    readonlyView.hidden = true;
     const reportBody = tableReport(card, true);
     root.querySelector("#report-body")!.innerHTML = "";
     document.querySelector("#print-report")!.innerHTML = reportBody;
@@ -1264,16 +1279,26 @@ export async function start() {
     ) {
       try {
         sharePreview = await decodeShare(location.hash);
-        if (location.hash.startsWith("#readonly=") || reportOnly) {
+        if (reportOnly) {
+          card = sharePreview;
+          blocked = false;
+          readonlyCard = sharePreview;
+          sharePreview = null;
+          persist();
+          document.querySelector<HTMLElement>("#readonly-status")!.textContent =
+            message === "Saved on this browser" ? "" : message;
+          document.querySelector<HTMLElement>("#editor")!.hidden = true;
+          readonlyView.hidden = false;
+          const markup = tableReport(readonlyCard, reportOnly, simpleSharedReport());
+          document.querySelector("#readonly-report")!.innerHTML = markup;
+          document.querySelector("#print-report")!.innerHTML = markup;
+          return;
+        }
+        if (location.hash.startsWith("#readonly=")) {
           readonlyCard = sharePreview;
           document.querySelector<HTMLElement>("#editor")!.hidden = true;
-          document.querySelector<HTMLElement>("#readonly-view")!.hidden = false;
-          if (reportOnly) {
-            document.querySelector<HTMLElement>("#share-preview")!.hidden = false;
-            document.querySelector<HTMLButtonElement>("#adopt")!.disabled = false;
-            document.querySelector("#preview-description")!.textContent = "Adopt this snapshot or keep your local draft.";
-          }
-          const markup = tableReport(readonlyCard, reportOnly, simpleSharedReport());
+          readonlyView.hidden = false;
+          const markup = tableReport(readonlyCard, false);
           document.querySelector("#readonly-report")!.innerHTML = markup;
           document.querySelector("#print-report")!.innerHTML = markup;
           return;
@@ -1284,6 +1309,15 @@ export async function start() {
         document.querySelector("#preview-description")!.textContent =
           `Shared card for ${sharePreview.name || "unnamed worker"}: ${hhmm(getReport(sharePreview).total)} hours. Your local draft stays in place until you adopt it.`;
       } catch (error) {
+        if (reportOnly) {
+          sharePreview = null;
+          document.querySelector<HTMLElement>("#editor")!.hidden = true;
+          readonlyView.hidden = false;
+          document.querySelector<HTMLElement>("#readonly-status")!.textContent = String(error);
+          document.querySelector<HTMLElement>("#readonly-report")!.innerHTML = "";
+          document.querySelector<HTMLElement>("#print-report")!.innerHTML = "";
+          return;
+        }
         document.querySelector("#share-preview")!.removeAttribute("hidden");
         document.querySelector("#preview-description")!.textContent =
           String(error);
