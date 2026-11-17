@@ -48,6 +48,7 @@ import {
   decodeReceiptLink,
 } from "../io/delivery";
 const id = () => crypto.randomUUID();
+const trashIconMarkup = '<svg class="trash-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M10 11v6m4-6v6M5 7l1 14h12l1-14M9 7V4h6v3"></path></svg>';
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -347,7 +348,7 @@ export async function start() {
           row = result.rows.find((r) => r.date === date);
         html += `<tr class="day ${context ? "context" : ""}" data-date="${date}"><td colspan="2"><div class="day-content"><div class="day-heading"><span>${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(day * 86400000))}</span><time class="day-date" datetime="${date}">${new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(new Date(day * 86400000))}</time><span class="day-hours">${context ? "Context day" : row ? hhmm(row.minutes) : "—"}</span></div>`;
         for (const e of entries) {
-          html += `<div class="period" data-period="${e.id}"><div class="work-fields">${input(e, e.start, "start", "In")}${input(e, e.end, "end", "Out")}<button class="icon-button" data-remove="${e.id}" aria-label="Delete work period ${date}">×</button></div>${e.actualDate && e.actualDate !== e.row ? `<small>Actual start date ${e.actualDate}</small>` : ""}${e.start.value !== null && e.end.value !== null && e.end.value < e.start.value ? "<small>Out is on the next day (+1 day)</small>" : ""}<div class="break-details">${e.breaks.map((b, i) => `<div class="break-fields">${input(e, b.start, `b${i}-start`, "Break in")}${input(e, b.end, `b${i}-end`, "Break out")}${b.paid ? '<span class="legacy-paid">Paid break</span>' : ""}<button data-remove-break="${e.id}:${i}" aria-label="Delete break">×</button></div>`).join("")}</div></div>`;
+          html += `<div class="period" data-period="${e.id}"><div class="work-fields">${input(e, e.start, "start", "In")}${input(e, e.end, "end", "Out")}<button class="icon-button" data-remove="${e.id}" aria-label="Delete work period ${date}">${trashIconMarkup}</button></div>${e.actualDate && e.actualDate !== e.row ? `<small>Actual start date ${e.actualDate}</small>` : ""}${e.start.value !== null && e.end.value !== null && e.end.value < e.start.value ? "<small>Out is on the next day (+1 day)</small>" : ""}<div class="break-details">${e.breaks.map((b, i) => `<div class="break-fields">${input(e, b.start, `b${i}-start`, "Break in")}${input(e, b.end, `b${i}-end`, "Break out")}${b.paid ? '<span class="legacy-paid">Paid break</span>' : ""}<button data-remove-break="${e.id}:${i}" aria-label="Delete break">${trashIconMarkup}</button></div>`).join("")}</div></div>`;
         }
         html += `<button class="text-button" data-add="${date}">+ Work</button><button class="text-button" data-break-date="${date}" data-add-break="${entries.slice().reverse().find((e) => e.start.value !== null && e.end.value !== null)?.id ?? entries[0]?.id ?? ""}">+ Break</button><button class="text-button" data-add-content="${date}">+ Add content</button>${card.content && Object.hasOwn(card.content, date) ? `<label class="content-field">Work content<input type="text" data-content="${date}" maxlength="2000" value="${escape(card.content[date])}"></label>` : ""}<ul class="day-errors" role="alert" data-errors="${date}"></ul></div></td></tr>`;
       }
@@ -358,7 +359,7 @@ export async function start() {
       const date = day.dataset.date!;
       const values = durationBreakValues(date);
       if (values?.length) {
-        day.querySelector(".day-content")!.insertAdjacentHTML("beforeend", values.map((value, index) => `<div class="duration-group"><label><span class="duration-heading">Break / Lunch</span><span class="duration-input"><input type="number" min="0" max="1439" step="1" data-duration-date="${date}" data-duration-index="${index}" aria-label="Break or lunch ${date} ${index + 1} minutes" value="${value}"><span class="duration-unit">min</span></span></label><button type="button" data-delete-duration="${date}" data-duration-index="${index}" aria-label="Delete break or lunch ${date} ${index + 1}">×</button></div>`).join(""));
+        day.querySelector(".day-content")!.insertAdjacentHTML("beforeend", values.map((value, index) => `<div class="duration-group"><label><span class="duration-heading">Break / Lunch</span><span class="duration-input"><input type="number" min="0" max="1439" step="1" data-duration-date="${date}" data-duration-index="${index}" aria-label="Break or lunch ${date} ${index + 1} minutes" value="${value}"><span class="duration-unit">min</span></span></label><button type="button" data-delete-duration="${date}" data-duration-index="${index}" aria-label="Delete break or lunch ${date} ${index + 1}">${trashIconMarkup}</button></div>`).join(""));
       }
     }
     for (const table of days.querySelectorAll<HTMLTableElement>(".entry-table")) {

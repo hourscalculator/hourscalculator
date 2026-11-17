@@ -1026,11 +1026,16 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
 }
 .entry-table .duration-group { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 8px; max-width: 220px; margin-bottom: 8px; padding: 8px; border-radius: 8px; background: #edf6e9; }
 .entry-table .duration-group label { min-width: 0; }
-.entry-table .duration-heading { display: block; margin-bottom: 4px; font-size: 14px; }
+.entry-table .duration-heading { display: block; margin-bottom: 4px; font-size: 12px; white-space: nowrap; }
 .entry-table .duration-input { display: flex; align-items: center; gap: 5px; }
 .entry-table .duration-input input { flex: 1; width: 100%; min-width: 0; }
 .entry-table .duration-unit { flex: none; font-size: 13px; font-weight: 400; }
+.entry-table .icon-button,
+.entry-table .break-fields > button,
+.entry-table .duration-group button { display: grid; place-items: center; }
+.entry-table .break-fields > button { width: 44px; padding: 0; }
 .entry-table .duration-group button { width: 44px; min-height: 44px; padding: 0; white-space: nowrap; }
+.entry-table .trash-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 [data-bulk-minutes] { width: 65px; }
 .quick-settings .quick-group:has([data-bulk-minutes]) { display: block; }
 .common-settings-title { grid-column: 1 / -1; }
@@ -1048,6 +1053,17 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
   .entry-table .day-actions { grid-column: 2 / 4; order: 2; }
   .entry-table .content-field, .entry-table .day-errors { grid-column: 2 / 4; order: 3; }
 }
+@media (min-width: 601px) and (max-width: 800px) {
+  .entry-table thead tr:not(:has(.week-heading)) { display: none; }
+  .entry-table .day { grid-template-columns: 16% minmax(0, 1fr); }
+  .entry-table .duration-cell { grid-column: 2; grid-row: auto; order: 1; }
+  .entry-table .day-actions { grid-column: 2; }
+  .entry-table .content-field, .entry-table .day-errors { grid-column: 2; }
+  .entry-table .work-fields { grid-template-columns: minmax(0, 1fr) 44px; }
+  .entry-table .work-fields > .time-field:first-child { grid-column: 1; grid-row: 1; }
+  .entry-table .work-fields > .time-field:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .entry-table .work-fields > .icon-button { grid-column: 2; grid-row: 2; width: 44px; }
+}
 @media (max-width: 600px) {
   .entry-table thead tr:not(:has(.week-heading)) { display: none; }
   .entry-table .day { display: grid; grid-template-columns: 60px minmax(0, 1fr); }
@@ -1057,6 +1073,11 @@ label:has(input:checked) > .simple-day-mark::after { content: '✓'; }
   .entry-table .duration-cell { grid-column: 2; order: 1; width: auto; }
   .entry-table .day-actions { grid-column: 2; order: 2; }
   .entry-table .content-field, .entry-table .day-errors { grid-column: 2; order: 3; }
+  .entry-table .work-fields { grid-template-columns: minmax(0, 1fr) 24px; }
+  .entry-table .work-fields > .time-field:first-child { grid-column: 1; grid-row: 1; }
+  .entry-table .work-fields > .time-field:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .entry-table .work-fields > .icon-button { grid-column: 2; grid-row: 2; }
+  .entry-table .break-fields > button { width: 24px; }
   .entry-table .duration-group { max-width: 160px; }
   .entry-table .time-control { flex-wrap: nowrap; gap: 3px; align-items: center; }
   .entry-table .time-control input { flex: 1 1 0; width: 0; min-width: 0; }
