@@ -45,19 +45,19 @@
                 <button class="remove-worker" type="button" data-remove-worker hidden aria-label="Remove time card">×</button>
               </div>
               <div class="settings-grid quick-settings">
+                <strong class="common-settings-title">Common settings</strong>
                 <div class="quick-group">
                   <label data-anchor="biweekly" class="biweekly">Report period<select data-card="length">
                     <option value="1" selected>1 week</option>
                     <option value="2">2 weeks</option>
                     <option value="3">3 weeks</option>
                     <option value="4">4 weeks</option>
-                    <option value="month">Calendar month</option>
                     <option value="custom">Custom dates</option>
                   </select></label>
+                  <div data-custom-dates hidden><label>Start <input type="date" data-custom-start required /></label><label>End <input type="date" data-custom-end required /></label></div>
                 </div>
                 <div class="quick-group">
-                  <label data-anchor="lunch" class="check"><input data-setting="auto" type="checkbox" /> Automatic daily unpaid break</label>
-                  <label><span class="minutes-control"><input aria-label="Daily break minutes" data-setting="deduction" type="number" min="0" max="1439" value="30" /> minutes</span></label>
+                  <span data-anchor="lunch"><button type="button" data-bulk-break="true" aria-label="Add break to all days">＋</button> Add <input aria-label="Bulk break minutes" data-bulk-minutes type="number" min="0" max="1439" step="1" required value="30" /> min break to all days</span>
                 </div>
               </div>
               <div class="time-card-title"><strong>Time Card</strong></div>
@@ -307,8 +307,8 @@
           <p>
             Worked minutes = work period minutes − unpaid break minutes. Paid
             breaks remain within worked time. Gaps between separate work periods
-            are already excluded. Automatic daily unpaid break adds an editable break starting at noon
-            to each day. Editing a break turns off the automatic option.
+            are already excluded. Use Add to add unpaid break minutes to days without an existing break.
+            Historical automatic and interval breaks remain editable and retain their calculation rules.
           </p>
           <p>
             Weekly overtime uses hours above 40 in each separate workweek. Daily

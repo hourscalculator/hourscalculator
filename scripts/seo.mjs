@@ -75,7 +75,7 @@ console.log('Page word counts, independent descriptions, topic FAQs and navigati
 const firstCard = html.match(/id="worker-cards">\s*(<section[\s\S]*?<\/section>)/)?.[1] ?? "";
 assert.match(firstCard, /<option value="1" selected/);
 assert.doesNotMatch(firstCard, /data-setting="auto"[^>]*checked/);
-assert.match(firstCard, /data-setting="deduction"[^>]*value="30"/);
+assert.match(firstCard, /data-bulk-minutes[^>]*value="30"/);
 assert.match(html, /<option value="weekly40" selected/);
 assert.match(html, /data-card="defaultSegments"[^>]*value="1"/);
 assert.match(html, /id="daily-report">[\s\S]*?0:00[\s\S]*?0\.00[\s\S]*?\$0\.00/);
@@ -143,8 +143,8 @@ for (const path of ['biweekly', 'decimal']) {
 }
 const decimalPage = readFileSync('dist/decimal/index.html','utf8');
 assert.equal((article(decimalPage).match(/<tbody>([\s\S]*?)<\/tbody>/)[1].match(/<tr>/g)||[]).length,60);
-assert.match(html, /id="biweekly"[^>]*[^]*?Report period/);
-assert.match(html, /id="lunch"/);
+assert.match(html, /data-anchor="biweekly"[^>]*[^]*?Report period/);
+assert.match(html, /data-anchor="lunch"/);
 assert.equal((sitemap.match(/<lastmod>2026-11-15<\/lastmod>/g)||[]).length,6);
 
 // Default production identity must propagate through the generated pages.

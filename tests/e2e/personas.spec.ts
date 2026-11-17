@@ -58,7 +58,7 @@ test('HR biweekly 40 and 42 hours yields 82 hours and $1826', async ({ page }) =
   await page.locator('[data-card="length"]').selectOption('2');
   await page.locator('.rate-settings .overtime-rule').selectOption('weekly40');
   await page.locator('.rate-settings [data-setting="rate"]').fill('22');
-  await page.locator('[data-setting="auto"]').check();
+  await page.locator('[data-bulk-break]').click();
   const monday = page.locator('.day[data-date="2026-11-02"]');
   await monday.locator('[data-field="start"]').fill('9a');
   await monday.locator('[data-field="end"]').fill('5:30p');
@@ -82,9 +82,9 @@ test('three copied cards preserve independent shifts and total 24 hours $600', a
     const worker = page.locator('.worker-card').nth(index);
     await worker.locator('[data-card="name"]').fill(name);
     await worker.locator('[data-card="project"]').fill('Kitchen Renovation');
-    await worker.locator('[data-setting="auto"]').check();
-    await worker.locator('[data-setting="deduction"]').fill(rest);
-    await worker.locator('[data-setting="deduction"]').blur();
+    while (await worker.locator('[data-delete-duration]').count()) await worker.locator('[data-delete-duration]').first().click();
+    await worker.locator('[data-bulk-minutes]').fill(rest);
+    await worker.locator('[data-bulk-break]').click();
     const day = worker.locator('.day').last();
     await day.locator('[data-field="start"]').fill(start);
     await day.locator('[data-field="end"]').fill(end);
@@ -92,10 +92,16 @@ test('three copied cards preserve independent shifts and total 24 hours $600', a
   }
   await expect(page.locator('#daily-report .report-grand-total')).toContainText('24:00');
   await expect(page.locator('#daily-report')).toContainText('$600.00');
+  for (const card of await page.locator('#daily-report .report-card').all().then(cards => cards.slice(0, 3))) await expect(card).toContainText('$200.00');
   await page.reload();
   await expect(page.locator('.worker-card')).toHaveCount(3);
   await expect(page.locator('#daily-report .report-grand-total')).toContainText('24:00');
   await verifyDelivery(page, 'team', 1440, 60000);
+  await page.locator('.rate-settings [data-setting="rate"]').fill('30');
+  await page.locator('.rate-settings [data-setting="rate"]').blur();
+  await expect(page.locator('#daily-report .report-grand-total')).toContainText('24:00');
+  await expect(page.locator('#daily-report')).toContainText('$720.00');
+  for (const card of await page.locator('#daily-report .report-card').all().then(cards => cards.slice(0, 3))) await expect(card).toContainText('$240.00');
   await page.screenshot({ path: test.info().outputPath('team.png'), fullPage: true });
 });
 test('new draft starts with optional identity and content disabled', async ({page}) => {
@@ -112,13 +118,14 @@ test('manual lunch and automatic break deduct once and overlapping breaks block 
  const day=page.locator('.day').last();
  await day.locator('[data-field="start"]').fill('9a'); await day.locator('[data-field="start"]').blur();
  await day.locator('[data-field="end"]').fill('5p'); await day.locator('[data-field="end"]').blur();
- await page.locator('[data-setting="auto"]').check();
+ await page.evaluate(() => { const card = JSON.parse(localStorage.getItem('time-card-v1')!); card.settings.auto = true; localStorage.setItem('time-card-v1', JSON.stringify(card)); });
+ await page.reload();
  await expect(page.locator('#daily-report .report-grand-total')).toContainText('7:30');
  await page.evaluate(() => {
    const card = JSON.parse(localStorage.getItem('time-card-v1')!);
    const entry = card.entries.filter((entry: any) => entry.start.value !== null).at(-1);
-   entry.breaks[0].automatic = false;
    const field = (value: number) => ({ raw: String(value), value, ampm: 'PM', dirty: false });
+   entry.breaks = [{ id: 'legacy-lunch', paid: false, start: field(720), end: field(750) }];
    entry.breaks.push({ id: 'legacy-overlap', paid: false, start: field(735), end: field(765) });
    localStorage.setItem('time-card-v1', JSON.stringify(card));
  });

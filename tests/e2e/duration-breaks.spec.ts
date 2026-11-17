@@ -1,5 +1,93 @@
 import { test, expect } from '@playwright/test';
-import { createCard, addEntry, setMinute } from '../../src/state/card';
+import { createCard, addEntry, field, setMinute } from '../../src/state/card';
+
+test('each card has one bulk control in common settings', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Close wizard' }).click();
+  const detailed = page.getByRole('button', { name: 'Detailed Calculator', exact: true });
+  if (await detailed.isVisible()) await detailed.click();
+  await page.locator('#add-time-card').click();
+  for (const card of await page.locator('.worker-card').all()) {
+    await expect(card.locator('.quick-settings [data-bulk-break]')).toHaveCount(1);
+    await expect(card.locator('[data-setting="auto"], [data-setting="deduction"]')).toHaveCount(0);
+    await expect(card.locator('.time-card-title + [data-days]')).toHaveCount(1);
+    await expect(card.locator('[data-days] [data-bulk-break]')).toHaveCount(0);
+  }
+  await page.reload();
+  await expect(page.locator('.worker-card .quick-settings [data-bulk-break]')).toHaveCount(2);
+});
+
+test('bulk break skips legacy minutes and existing intervals', async ({ page }) => {
+  const card = createCard('2026-11-16');
+  const legacy = addEntry(card, '2026-11-16', 'legacy');
+  legacy.dailyBreakMinutes = 15;
+  const interval = addEntry(card, '2026-11-17', 'interval');
+  const rest = { id: 'old-rest', start: field(), end: field(), paid: true };
+  setMinute(card, interval, rest.start, 720);
+  setMinute(card, interval, rest.end, 750);
+  interval.breaks.push(rest);
+  await page.goto('/');
+  await page.evaluate(card => {
+    localStorage.setItem('time-card-v1', JSON.stringify(card));
+    localStorage.setItem('time-card-simple-ui-v1', JSON.stringify({ mode: 'detailed', visited: true }));
+  }, card);
+  await page.reload();
+  await page.locator('[data-bulk-minutes]').fill('45');
+  await page.locator('[data-bulk-break]').click();
+  await expect(page.locator('.day[data-date="2026-11-16"] [data-duration-date]')).toHaveCount(0);
+  await expect(page.locator('.day[data-date="2026-11-17"] [data-duration-date]')).toHaveCount(0);
+  await expect(page.locator('.day[data-date="2026-11-18"] [data-duration-date]')).toHaveValue('45');
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('time-card-v1')!));
+  expect(stored.entries.find((entry: { id: string }) => entry.id === 'legacy').dailyBreakMinutes).toBe(15);
+  expect(stored.entries.find((entry: { id: string }) => entry.id === 'interval').breaks[0].paid).toBe(true);
+});
+
+test('bulk break accepts a per-card minute value', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Close wizard' }).click();
+  const detailed = page.getByRole('button', { name: 'Detailed Calculator', exact: true });
+  if (await detailed.isVisible()) await detailed.click();
+  await page.locator('[data-bulk-minutes]').fill('45');
+  await page.locator('[data-bulk-break]').click();
+  await expect(page.locator('[data-duration-date]')).toHaveCount(7);
+  for (const input of await page.locator('[data-duration-date]').all()) await expect(input).toHaveValue('45');
+});
+
+test('invalid bulk values leave draft unchanged and zero adds nothing', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Close wizard' }).click();
+  const detailed = page.getByRole('button', { name: 'Detailed Calculator', exact: true });
+  if (await detailed.isVisible()) await detailed.click();
+  const input = page.locator('[data-bulk-minutes]');
+  const before = await page.evaluate(() => localStorage.getItem('time-card-v1'));
+  for (const value of ['', '-1', '1.5', '1440']) {
+    await input.fill(value);
+    await page.locator('[data-bulk-break]').click();
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(await page.evaluate(() => localStorage.getItem('time-card-v1'))).toBe(before);
+  }
+  await input.fill('0');
+  await page.locator('[data-bulk-break]').click();
+  await expect(page.locator('[data-duration-date]')).toHaveCount(0);
+  await input.fill('45');
+  await page.locator('[data-bulk-break]').click();
+  await expect(page.locator('[data-duration-date]')).toHaveCount(7);
+});
+
+test('bulk minutes belong to each card view', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Close wizard' }).click();
+  const detailed = page.getByRole('button', { name: 'Detailed Calculator', exact: true });
+  if (await detailed.isVisible()) await detailed.click();
+  await page.locator('[data-bulk-minutes]').first().fill('15');
+  await page.locator('#add-time-card').click();
+  await page.locator('[data-bulk-minutes]').last().fill('45');
+  await page.locator('[data-bulk-break]').last().click();
+  await expect(page.locator('.worker-card').first().locator('[data-duration-date]')).toHaveCount(0);
+  await expect(page.locator('.worker-card').last().locator('[data-duration-date]')).toHaveCount(7);
+  await expect(page.locator('[data-bulk-minutes]').first()).toHaveValue('15');
+  await expect(page.locator('[data-duration-date]').last()).toHaveValue('45');
+});
 
 test('duration breaks persist through formal report and CSV', async ({ page }) => {
   await page.goto('/');
@@ -25,6 +113,9 @@ test('duration breaks persist through formal report and CSV', async ({ page }) =
   await download.saveAs(path);
   const { readFile } = await import('node:fs/promises');
   expect(await readFile(path, 'utf8')).toContain('"Total","375","6:15"');
+  await page.locator('.day[data-date="2026-11-16"] [data-delete-duration]').first().click();
+  await expect(page.locator('#print-report')).toContainText('6:30');
+  await expect(page.locator('#print-report')).toContainText('130.00');
 });
 
 test('daily duration editor covers blank dates, skips existing positive breaks and stays idempotent', async ({ page }) => {
@@ -37,13 +128,20 @@ test('daily duration editor covers blank dates, skips existing positive breaks a
   await expect(first.locator('[data-duration-date]')).toHaveValue('30');
   await first.locator('[data-add-break]').click();
   await expect(first.locator('[data-duration-date]')).toHaveCount(2);
+  await first.locator('[data-duration-date]').first().fill('15');
+  await page.locator('[data-bulk-minutes]').fill('45');
   await page.locator('[data-bulk-break]').click();
   await expect(page.locator('[data-duration-date]')).toHaveCount(8);
+  await expect(first.locator('[data-duration-date]').first()).toHaveValue('15');
+  await expect(first.locator('[data-duration-date]').last()).toHaveValue('30');
+  for (const day of await page.locator('.day').all().then(days => days.slice(1))) await expect(day.locator('[data-duration-date]')).toHaveValue('45');
   await page.locator('[data-bulk-break]').click();
   await expect(page.locator('[data-duration-date]')).toHaveCount(8);
   await expect(page.locator('.timeline')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('[data-duration-date]')).toHaveCount(8);
+  await expect(page.locator('[data-bulk-minutes]')).toHaveValue('30');
+  await expect(page.locator('.day').nth(1).locator('[data-duration-date]')).toHaveValue('45');
   await page.locator('#add-time-card').click();
   page.once('dialog', dialog => dialog.dismiss());
   await page.locator('[data-remove-worker]:visible').click();

@@ -38,6 +38,27 @@ test('Quick Fill break minutes stay visible in Detail without an inferred time',
  await expect(page.locator('#daily-report .report-grand-total .report-total td:first-of-type')).toHaveText('39:30');
 });
 
+test('Detail break edit returns to Quick Fill with its actual minutes', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T04:00:00Z'));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.locator('[data-time="start"][data-date=""]').fill('9a');
+  await page.locator('[data-time="end"][data-date=""]').fill('5p');
+  await page.locator('[data-time="end"][data-date=""]').blur();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.locator('[data-break-preset][value="30"]').check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Calculate Hours', exact: true }).last().click();
+  await page.getByRole('link', { name: 'Want to adjust the details? Click here to open Detailed Calculator', exact: true }).click();
+  const monday = page.locator('.day[data-date="2026-11-09"]');
+  await monday.locator('[data-duration-date]').fill('45');
+  await monday.locator('[data-duration-date]').blur();
+  await expect(monday.locator('.day-hours')).toHaveText('7:15');
+  await page.getByRole('link', { name: 'Want to fill in quickly? Click here to open the wizard', exact: true }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.locator('[data-break="2026-11-09"]')).toHaveValue('45');
+});
+
 test('Quick Fill zero break has no Detail summary', async ({page}) => {
  await page.clock.setFixedTime(new Date('2026-11-09T04:00:00Z'));
  await page.goto('/');
@@ -90,9 +111,7 @@ test('Simple break changes in Detail persist through delivery and refresh', asyn
  await page.locator('[data-simple-rate]').fill('20');
  await page.getByRole('button',{name:'Calculate Hours',exact:true}).last().click();
  await page.getByRole('link',{name:'Want to adjust the details? Click here to open Detailed Calculator',exact:true}).click();
- await page.locator('[data-setting="auto"]').check();
- await page.locator('[data-setting="deduction"]').fill('60');
- await page.locator('[data-setting="deduction"]').blur();
+ await expect(page.locator('[data-duration-date]').first()).toHaveValue('30');
  await expect(page.locator('#daily-report .report-grand-total')).toContainText('40:00');
  await expect(page.locator('#daily-report')).toContainText('$800.00');
  await page.reload();

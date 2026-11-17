@@ -333,6 +333,10 @@ export async function start() {
     const multipleWeeks = range.contextEnd - range.contextStart > 7;
     for (const control of workerRoot.querySelectorAll("[data-choose-dates]"))
       control.textContent = `${dateString(range.start)} – ${dateString(range.end - 1)}`;
+    const customDates = workerRoot.querySelector<HTMLElement>('[data-custom-dates]')!;
+    customDates.hidden = card.length !== 'custom' && card.length !== 'month';
+    customDates.querySelector<HTMLInputElement>('[data-custom-start]')!.value = dateString(range.start);
+    customDates.querySelector<HTMLInputElement>('[data-custom-end]')!.value = dateString(range.end - 1);
     let html = "";
     for (let week = range.contextStart; week < range.contextEnd; week += 7) {
       html += `<section class="week-block" aria-label="Week ${Math.floor((week - range.contextStart) / 7) + 1}"><table class="entry-table">${multipleWeeks ? `<thead><tr><th colspan="2" class="week-heading"><div><span>Week ${Math.floor((week - range.contextStart) / 7) + 1}</span><span>${dateString(Math.max(week, range.start))} – ${dateString(Math.min(week + 6, range.end - 1))}</span></div></th></tr></thead>` : ""}<tbody class="week" data-week="${dateString(week)}">`;
@@ -356,17 +360,17 @@ export async function start() {
             : "";
           html += `<div class="period" data-period="${e.id}"><div class="work-fields">${input(e, e.start, "start", "In")}${input(e, e.end, "end", "Out")}<button class="icon-button" data-remove="${e.id}" aria-label="Delete work period ${date}">×</button></div>${e.actualDate && e.actualDate !== e.row ? `<small>Actual start date ${e.actualDate}</small>` : ""}${e.start.value !== null && e.end.value !== null && e.end.value < e.start.value ? "<small>Out is on the next day (+1 day)</small>" : ""}<div class="break-details">${minuteBreak}${e.breaks.map((b, i) => `<div class="break-fields">${input(e, b.start, `b${i}-start`, "Break in")}${input(e, b.end, `b${i}-end`, "Break out")}${b.paid ? '<span class="legacy-paid">Paid break</span>' : ""}<button data-remove-break="${e.id}:${i}" aria-label="Delete break">×</button></div>`).join("")}</div></div>`;
         }
-        html += `<button class="text-button" data-add="${date}">+ Add work period</button><button class="text-button" data-break-date="${date}" data-add-break="${entries.slice().reverse().find((e) => e.start.value !== null && e.end.value !== null)?.id ?? entries[0]?.id ?? ""}">+ Add break</button><button class="text-button" data-add-content="${date}">+ Add content</button>${card.content && Object.hasOwn(card.content, date) ? `<label class="content-field">Work content<input type="text" data-content="${date}" maxlength="2000" value="${escape(card.content[date])}"></label>` : ""}<ul class="day-errors" role="alert" data-errors="${date}"></ul></div></td></tr>`;
+        html += `<button class="text-button" data-add="${date}">+ Work</button><button class="text-button" data-break-date="${date}" data-add-break="${entries.slice().reverse().find((e) => e.start.value !== null && e.end.value !== null)?.id ?? entries[0]?.id ?? ""}">+ Break</button><button class="text-button" data-add-content="${date}">+ Add content</button>${card.content && Object.hasOwn(card.content, date) ? `<label class="content-field">Work content<input type="text" data-content="${date}" maxlength="2000" value="${escape(card.content[date])}"></label>` : ""}<ul class="day-errors" role="alert" data-errors="${date}"></ul></div></td></tr>`;
       }
       html += "</tbody></table></section>";
     }
-    days.innerHTML = `<button type="button" data-bulk-break="true">Add 30 min break to all dates</button>` + html;
+    days.innerHTML = html;
     for (const day of days.querySelectorAll<HTMLElement>(".day")) {
       const date = day.dataset.date!;
       const values = card.durationBreaks?.[date];
       if (values !== undefined) {
         day.querySelectorAll(".legacy-break-summary").forEach(element => element.remove());
-        day.querySelector(".day-content")!.insertAdjacentHTML("beforeend", values.map((value, index) => `<label>Minutes<input type="number" min="0" max="1439" step="1" data-duration-date="${date}" data-duration-index="${index}" aria-label="Unpaid break ${date} ${index + 1}" value="${value}"></label><button type="button" data-delete-duration="${date}" data-duration-index="${index}">Delete break</button>`).join(""));
+        day.querySelector(".day-content")!.insertAdjacentHTML("beforeend", values.map((value, index) => `<div class="duration-group"><label>Minutes<input type="number" min="0" max="1439" step="1" data-duration-date="${date}" data-duration-index="${index}" aria-label="Unpaid break ${date} ${index + 1}" value="${value}"></label><button type="button" data-delete-duration="${date}" data-duration-index="${index}" aria-label="Delete break">×</button></div>`).join(""));
       }
     }
     for (const table of days.querySelectorAll<HTMLTableElement>(".entry-table")) {
@@ -382,7 +386,7 @@ export async function start() {
       day.prepend(dateCell);
       const breaksCell = document.createElement("td");
       breaksCell.className = "duration-cell";
-      for (const element of day.querySelectorAll("label:has([data-duration-date]), [data-delete-duration], [data-add-break], .legacy-break-summary")) breaksCell.append(element);
+      for (const element of day.querySelectorAll(".duration-group, .legacy-break-summary")) breaksCell.append(element);
       day.append(breaksCell);
     }
     for (const content of days.querySelectorAll(".day-content")) {
@@ -421,7 +425,15 @@ export async function start() {
       const target = issue.message.includes("duration breaks") && durationControls.length ? durationControls[durationControls.length - 1] : control;
       if (target) messages.set(target, issue.message);
     }
-    if (report.errors.some((error) => error.includes("automatic break exceeds hours"))) messages.set(workerRoot.querySelector<HTMLInputElement>('[data-setting="deduction"]')!, "Daily break is longer than the working time.");
+    for (const error of report.errors) {
+      if (!error.includes('automatic break exceeds hours')) continue;
+      const date = error.slice(0, 10);
+      const automatic = card.entries.find(entry => entry.row === date && entry.breaks.some(rest => rest.automatic));
+      if (!automatic) continue;
+      const index = automatic.breaks.findIndex(rest => rest.automatic);
+      const control = days.querySelector<HTMLInputElement>(`[data-entry="${automatic.id}"][data-field="b${index}-end"]`);
+      if (control) messages.set(control, 'Daily break is longer than the working time.');
+    }
     for (const control of controls) setFieldError(control, messages.get(control) ?? "");
   }
   function updateResults() {
@@ -431,7 +443,6 @@ export async function start() {
       const row = r.rows.find((row) => row.date === day.dataset.date);
       if (label) label.textContent = row ? hhmm(row.minutes) : "—";
     }
-    workerRoot.querySelector<HTMLInputElement>('[data-setting="deduction"]')!.disabled = !card.settings.auto;
     root.querySelector(".rate-currency")!.textContent = new Intl.NumberFormat("en-US", { style: "currency", currency: card.currency }).formatToParts(0).find((part) => part.type === "currency")!.value;
     workerRoot.setAttribute("aria-label", card.name ? `${card.name} time card` : "Employee time card");
     workerRoot.querySelector<HTMLButtonElement>("[data-remove-worker]")?.setAttribute("aria-label", `Remove ${card.name || "time card"}`);
@@ -485,6 +496,7 @@ export async function start() {
       if (el instanceof HTMLInputElement && el.type === "checkbox")
         el.checked = Boolean(card[key]);
       else el.value = String(card[key]);
+      if (key === 'length' && card.length === 'month') el.value = 'custom';
     }
     for (const el of [
       ...workerRoot.querySelectorAll<
@@ -577,6 +589,7 @@ export async function start() {
     const target = event.target as HTMLInputElement;
     activateWorkerFromTarget(target);
     if (target.dataset.setting || target.dataset.card) target.setCustomValidity("");
+    if (target.hasAttribute('data-bulk-minutes')) setFieldError(target, '');
     if (target.dataset.field || target.dataset.setting || target.dataset.card || target.dataset.content) {
       copiedSnapshot = "";
       updateCopiedState();
@@ -660,6 +673,27 @@ export async function start() {
     if (el.matches("#template-name, #templates, #receipt-input, [data-field], [data-content]")) return;
     activateWorkerFromTarget(el);
     if (el === rangeStart || el === rangeEnd) return;
+    if (el.hasAttribute('data-bulk-minutes')) return;
+    if (el.hasAttribute('data-custom-start') || el.hasAttribute('data-custom-end')) {
+      const start = workerRoot.querySelector<HTMLInputElement>('[data-custom-start]')!;
+      const end = workerRoot.querySelector<HTMLInputElement>('[data-custom-end]')!;
+      if (!start.value || !end.value || start.value > end.value) {
+        setFieldError(el, 'Enter a valid date range.');
+        return;
+      }
+      try {
+        const proposed = { ...card, anchor: start.value, endDate: end.value, length: 'custom' };
+        cardPeriod(proposed);
+        setFieldError(start, '');
+        setFieldError(end, '');
+        card.anchor = proposed.anchor;
+        card.endDate = proposed.endDate;
+        card.length = 'custom';
+        renderAllWorkerDays();
+        persist();
+      } catch (error) { setFieldError(el, String(error)); }
+      return;
+    }
     if (!el.checkValidity()) {
       setFieldError(el, el.validationMessage);
       return;
@@ -936,6 +970,14 @@ export async function start() {
       if (next) fillFollowingDays(next);
     }
     else if (target.dataset.breakDate || target.dataset.bulkBreak || target.dataset.deleteDuration) {
+      const bulkInput = workerRoot.querySelector<HTMLInputElement>('[data-bulk-minutes]')!;
+      if (target.dataset.bulkBreak && !bulkInput.checkValidity()) {
+        setFieldError(bulkInput, bulkInput.validationMessage);
+        bulkInput.focus();
+        return;
+      }
+      const bulkMinutes = Number(bulkInput.value);
+      if (target.dataset.bulkBreak && bulkMinutes === 0) return;
       const dates = target.dataset.bulkBreak ? cardPeriod(card).dates.filter(date => dayNumber(date) >= cardPeriod(card).start && dayNumber(date) < cardPeriod(card).end) : [target.dataset.breakDate ?? target.dataset.deleteDuration!];
       for (const date of dates) {
         const legacy = card.entries.filter(entry => entry.row === date).reduce((sum, entry) => sum + (entry.dailyBreakMinutes ?? 0), 0);
@@ -945,7 +987,7 @@ export async function start() {
         card.durationBreaks ??= {};
         card.durationBreaks[date] = [...values];
         if (target.dataset.deleteDuration) card.durationBreaks[date].splice(Number(target.dataset.durationIndex), 1);
-        else card.durationBreaks[date].push(30);
+        else card.durationBreaks[date].push(target.dataset.bulkBreak ? bulkMinutes : 30);
         stopRowSync(date);
       }
     } else if (target.dataset.removeBreak) {

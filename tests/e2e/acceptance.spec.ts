@@ -5,7 +5,9 @@ test("month, context, desktop and lifecycle", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
   await openDetailed(page);
   await page.locator("#settings").evaluate((e) => e.setAttribute("open", ""));
-  await page.locator('[data-card="length"]').selectOption("month");
+  await page.locator('[data-card="length"]').selectOption("custom");
+  await page.locator('[data-custom-start]').fill('2026-11-01');
+  await page.locator('[data-custom-end]').fill('2026-11-30');
   expect(await page.locator(".day").count()).toBeGreaterThanOrEqual(28);
   await page.locator("[data-add]").first().evaluate((e) => {
     for (let parent = e.parentElement; parent; parent = parent.parentElement)

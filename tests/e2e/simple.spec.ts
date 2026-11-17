@@ -148,7 +148,7 @@ test('damaged draft is preserved and receipt links bypass the wizard', async ({ 
 
 test('fresh specialty pages retain their Detailed presets', async ({ page }) => {
   await page.goto('/with-lunch/');
-  await expect(page.locator('[data-setting="auto"]')).toBeChecked();
+  await expect(page.locator('[data-bulk-minutes]')).toHaveValue('30');
   await page.locator('#settings').evaluate((node: HTMLDetailsElement) => node.open = true);
   await page.getByLabel('Show Client', {exact:true}).check();
   await page.getByLabel('Show Project', {exact:true}).check();

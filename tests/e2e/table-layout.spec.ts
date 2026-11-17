@@ -1,5 +1,37 @@
 import { openDetailed } from "./helpers";
 import { expect, test } from '@playwright/test';
+for (const width of [375, 390]) test(`work and break delete controls stay beside their inputs at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  await openDetailed(page);
+  const day = page.locator('.day').first();
+  await day.locator('[data-add-break]').click();
+  const positions = await day.evaluate(day => {
+    const box = (selector: string) => day.querySelector(selector)!.getBoundingClientRect();
+    return { work: box('[data-field="end"]'), workDelete: box('[data-remove]'), rest: box('[data-duration-date]'), restDelete: box('[data-delete-duration]'), actions: box('.day-actions') };
+  });
+  expect(positions.workDelete.left).toBeGreaterThanOrEqual(positions.work.right);
+  expect(positions.restDelete.left).toBeGreaterThanOrEqual(positions.rest.right);
+  expect(positions.rest.width).toBeGreaterThanOrEqual(48);
+  expect(positions.actions.top).toBeGreaterThanOrEqual(positions.rest.bottom);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+test('desktop actions follow all work and break records', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openDetailed(page);
+  const day = page.locator('.day').first();
+  await day.locator('[data-add-break]').click();
+  await day.locator('[data-add-break]').click();
+  const positions = await day.evaluate(day => ({
+    lastBreak: day.querySelector('.duration-group:last-child')!.getBoundingClientRect().bottom,
+    actions: day.querySelector('.day-actions')!.getBoundingClientRect().top,
+    width: day.getBoundingClientRect().width,
+    workWidth: day.querySelector('[data-field="start"]')!.getBoundingClientRect().width,
+  }));
+  expect(positions.actions).toBeGreaterThanOrEqual(positions.lastBreak);
+  expect(positions.width).toBeGreaterThan(500);
+  expect(positions.workWidth).toBeGreaterThan(100);
+  await day.screenshot({ path: test.info().outputPath('desktop-day.png') });
+});
 test('two tables, persistent rows and any-day forward fill', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openDetailed(page);
